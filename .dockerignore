@@ -1,0 +1,43 @@
+# .dockerignore
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+Dockerfile.*
+docker-compose.yml
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+venv_bot/
+.venv/
+
+# Node.js (для бэкенд-контейнера они не нужны, фронтенд их обработает сам)
+# Если папка frontend в корне, то так:
+frontend/node_modules/
+landing/
+build
+coverage
+dist
+build.sh
+docker
+Makefile
+.vite
+# IDE
+.idea/
+.vscode/
+
+# Другое
+*.log
+logs/
+data/
+*.db
+*.sqlite3
+*.csv
+data_storage/

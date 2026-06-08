@@ -1,0 +1,206 @@
+# Standard deployment configuration for DepthSight
+# This file is used by the deploy.sh script for automatic setup.
+
+services:
+  postgres:
+    image: postgres:15-alpine
+    container_name: depthsight_postgres
+    env_file: .env
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7.2-alpine
+    container_name: depthsight_redis
+    env_file: .env
+    command: >
+      sh -ec '
+        printf "%s\n" \
+          "user default off" \
+          "user api on >$${REDIS_API_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          "user websocket on >$${REDIS_WEBSOCKET_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          "user bot on >$${REDIS_BOT_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          "user celery on >$${REDIS_CELERY_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          "user market_data on >$${REDIS_MARKET_DATA_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          > /tmp/users.acl
+        exec redis-server --aclfile /tmp/users.acl --appendonly yes
+      '
+    volumes:
+      - redis_data:/data
+    restart: always
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --user api -a \"$${REDIS_API_PASSWORD:-$${REDIS_PASSWORD}}\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis-market:
+    image: redis:7.2-alpine
+    container_name: depthsight_redis_market
+    env_file: .env
+    command: >
+      sh -ec '
+        printf "%s\n" \
+          "user default off" \
+          "user bot on >$${REDIS_BOT_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          "user market_data on >$${REDIS_MARKET_DATA_PASSWORD:-$${REDIS_PASSWORD}} ~* &* +@all" \
+          > /tmp/users_market.acl
+        exec redis-server --aclfile /tmp/users_market.acl --save "" --appendonly no
+      '
+    restart: always
+
+  api:
+    build: .
+    container_name: depthsight_api
+    env_file: .env
+    volumes:
+      - ./data_storage:/app/data_storage
+      - ./logs:/app/logs
+      - ./data:/app/data
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - REDIS_USERNAME=api
+      - REDIS_PASSWORD=${REDIS_API_PASSWORD:-${REDIS_PASSWORD}}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: always
+
+  websocket:
+    build: .
+    container_name: depthsight_websocket
+    command: >
+      /usr/local/bin/gunicorn api.websocket_server:app
+      --workers 3
+      --worker-class uvicorn.workers.UvicornWorker
+      --bind 0.0.0.0:8765
+    env_file: .env
+    environment:
+      - POSTGRES_HOST=postgres
+      - REDIS_HOST=redis
+      - REDIS_USERNAME=websocket
+      - REDIS_PASSWORD=${REDIS_WEBSOCKET_PASSWORD:-${REDIS_PASSWORD}}
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    restart: on-failure
+
+  bot:
+    build: .
+    container_name: depthsight_bot
+    command: python bot_runner.py
+    volumes:
+      - ./data_storage:/app/data_storage
+      - ./data:/app/data
+    env_file: .env
+    environment:
+      - MARKET_DATA_FANOUT_MODE=redis
+      - REDIS_HOST=redis
+      - MARKET_REDIS_HOST=redis-market
+      - REDIS_USERNAME=bot
+      - REDIS_PASSWORD=${REDIS_BOT_PASSWORD:-${REDIS_PASSWORD}}
+    depends_on:
+      api:
+        condition: service_started
+      websocket:
+        condition: service_started
+      market_data:
+        condition: service_started
+      redis-market:
+        condition: service_started
+    restart: on-failure
+
+  market_data:
+    build: .
+    container_name: depthsight_market_data
+    command: python market_data_service.py
+    volumes:
+      - ./data_storage:/app/data_storage
+      - ./data:/app/data
+    env_file: .env
+    environment:
+      - MARKET_DATA_FANOUT_MODE=redis
+      - REDIS_HOST=redis
+      - MARKET_REDIS_HOST=redis-market
+      - REDIS_USERNAME=market_data
+      - REDIS_PASSWORD=${REDIS_MARKET_DATA_PASSWORD:-${REDIS_PASSWORD}}
+    depends_on:
+      redis:
+        condition: service_healthy
+      redis-market:
+        condition: service_started
+    restart: on-failure
+
+  celery_worker:
+    build: .
+    container_name: depthsight_celery_worker
+    command: celery -A tasks.celery_app worker --loglevel=info --pool=prefork -c 8
+    volumes:
+      - ./data_storage:/app/data_storage
+      - ./data:/app/data
+    env_file: .env
+    environment:
+      - REDIS_USERNAME=celery
+      - REDIS_PASSWORD=${REDIS_CELERY_PASSWORD:-${REDIS_PASSWORD}}
+      - REDIS_HOST=redis
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: "${PUBLIC_BASE_URL:-http://localhost}"
+    container_name: depthsight_frontend
+    restart: always
+
+  pwa:
+    build:
+      context: ./pwa
+      dockerfile: Dockerfile.prod
+    container_name: depthsight_pwa
+    restart: always
+
+  caddy:
+    image: caddy:2.7-alpine
+    container_name: depthsight_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+      - EMAIL=${ADMIN_EMAIL:-admin@depthsight.pro}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - api
+      - websocket
+      - frontend
+      - pwa
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: always
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:

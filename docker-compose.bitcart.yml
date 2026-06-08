@@ -1,0 +1,251 @@
+version: "3.8"
+
+services:
+  bitcart_db:
+    image: postgres:15-alpine
+    container_name: bitcart_postgres
+    environment:
+      POSTGRES_DB: bitcart
+      POSTGRES_USER: bitcart
+      POSTGRES_PASSWORD: ${BITCART_DB_PASSWORD:-bitcart_default_pass_123}
+    volumes:
+      - bitcart_postgres_data:/var/lib/postgresql/data
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_redis:
+    image: redis:7-alpine
+    container_name: bitcart_redis
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_api:
+    image: bitcart/bitcart:stable
+    container_name: bitcart_api
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /app/data && chmod 777 /app/data && (sed -i 's/workers = .*/workers = 4/g' gunicorn.conf.py || true) && exec /usr/local/bin/docker-entrypoint.sh just prod-api-up"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BITCART_LOG_LEVEL: debug
+      BITCART_DEBUG: "true"
+      DB_HOST: bitcart_postgres
+      DB_PORT: 5432
+      DB_DATABASE: bitcart
+      DB_USER: bitcart
+      DB_PASSWORD: ${BITCART_DB_PASSWORD:-bitcart_default_pass_123}
+      REDIS_HOST: bitcart_redis
+      REDIS_PORT: 6379
+      BITCART_CRYPTOS: btc,ltc,trx,bnb,matic
+      BTC_HOST: bitcart_btc
+      BTC_PORT: 5000
+      LTC_HOST: bitcart_ltc
+      LTC_PORT: 5001
+      TRX_HOST: bitcart_trx
+      TRX_PORT: 5009
+      BNB_HOST: bitcart_bnb
+      BNB_PORT: 5006
+      MATIC_HOST: bitcart_matic
+      MATIC_PORT: 5008
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_ADMIN_URL: ${BITCART_ADMIN_URL:-http://localhost:8081}
+      BITCART_STORE_URL: ${BITCART_STORE_URL:-http://localhost:8082}
+      BITCART_HOST: 0.0.0.0
+      BITCART_REVERSE_PROXY: "true"
+      BITCART_API_URL: ${BITCART_API_URL:-http://localhost:8001}
+    networks:
+      - default
+      - depthsight_network
+    ports:
+      - "8001:8000"
+    volumes:
+      - ./bitcart_data:/app/data
+    depends_on:
+      - bitcart_db
+      - bitcart_redis
+    restart: always
+
+  bitcart_worker:
+    image: bitcart/bitcart:stable
+    container_name: bitcart_worker
+    entrypoint: ["/bin/bash", "-c", "mkdir -p /app/data && chmod 777 /app/data && exec /usr/local/bin/docker-entrypoint.sh python3 worker.py"]
+    environment:
+      PYTHONUNBUFFERED: "1"
+      BITCART_LOG_LEVEL: debug
+      BITCART_DEBUG: "true"
+      DB_HOST: bitcart_postgres
+      DB_PORT: 5432
+      DB_DATABASE: bitcart
+      DB_USER: bitcart
+      DB_PASSWORD: ${BITCART_DB_PASSWORD:-bitcart_default_pass_123}
+      REDIS_HOST: bitcart_redis
+      REDIS_PORT: 6379
+      BITCART_CRYPTOS: btc,ltc,trx,bnb,matic
+      BTC_HOST: bitcart_btc
+      BTC_PORT: 5000
+      LTC_HOST: bitcart_ltc
+      LTC_PORT: 5001
+      TRX_HOST: bitcart_trx
+      TRX_PORT: 5009
+      BNB_HOST: bitcart_bnb
+      BNB_PORT: 5006
+      MATIC_HOST: bitcart_matic
+      MATIC_PORT: 5008
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_FIAT_PROVIDER: bitfinex
+      BITCART_ADMIN_URL: ${BITCART_ADMIN_URL:-http://localhost:8081}
+      BITCART_STORE_URL: ${BITCART_STORE_URL:-http://localhost:8082}
+      BITCART_HOST: 0.0.0.0
+      BITCART_REVERSE_PROXY: "true"
+    volumes:
+      - ./bitcart_data:/app/data
+    networks:
+      - default
+      - depthsight_network
+    depends_on:
+      - bitcart_db
+      - bitcart_redis
+    restart: always
+
+  bitcart_btc:
+    image: bitcart/bitcart-btc:stable
+    container_name: bitcart_btc
+    dns:
+      - 8.8.8.8
+    environment:
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_NETWORK: mainnet
+      NETWORK: mainnet
+      ELECTRUM_AUTO_CONNECT: "true"
+    volumes:
+      - ./bitcart_btc_data:/home/electrum/.electrum
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_ltc:
+    image: bitcart/bitcart-ltc:stable
+    container_name: bitcart_ltc
+    dns:
+      - 8.8.8.8
+    environment:
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_NETWORK: mainnet
+      LTC_NETWORK: mainnet
+      PORT: 5000
+      ELECTRUM_AUTO_CONNECT: "true"
+    volumes:
+      - ./bitcart_ltc_data:/home/electrum/.electrum
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_trx:
+    image: bitcart/bitcart-trx:stable
+    container_name: bitcart_trx
+    dns:
+      - 8.8.8.8
+    environment:
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_NETWORK: mainnet
+      TRX_NETWORK: mainnet
+      TRX_SERVER: https://tron-rpc.publicnode.com
+      PORT: 5000
+      ELECTRUM_AUTO_CONNECT: "true"
+    volumes:
+      - ./bitcart_trx_data:/home/electrum/.electrum
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_bnb:
+    image: bitcart/bitcart-bnb:stable
+    container_name: bitcart_bnb
+    dns:
+      - 8.8.8.8
+    environment:
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_NETWORK: mainnet
+      BNB_NETWORK: mainnet
+      BNB_SERVER: https://bsc-dataseed.binance.org
+      PORT: 5000
+      ELECTRUM_AUTO_CONNECT: "true"
+    volumes:
+      - ./bitcart_bnb_data:/home/electrum/.electrum
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_matic:
+    image: bitcart/bitcart-matic:stable
+    container_name: bitcart_matic
+    dns:
+      - 8.8.8.8
+    environment:
+      BITCART_DAEMON_USER: electrum
+      BITCART_DAEMON_PASS: electrumz
+      BITCART_NETWORK: mainnet
+      MATIC_NETWORK: mainnet
+      MATIC_SERVER: https://polygon-bor-rpc.publicnode.com
+      PORT: 5000
+      ELECTRUM_AUTO_CONNECT: "true"
+    volumes:
+      - ./bitcart_matic_data:/home/electrum/.electrum
+    networks:
+      - default
+      - depthsight_network
+    restart: always
+
+  bitcart_admin:
+    image: bitcart/bitcart-admin:stable
+    container_name: bitcart_admin
+    command: yarn start
+    environment:
+      BITCART_ADMIN_API_URL: ${BITCART_API_URL:-http://localhost:8001}
+    ports:
+      - "8081:4000"
+    networks:
+      - default
+      - depthsight_network
+    extra_hosts:
+      - "${API_DOMAIN:-localhost}:host-gateway"
+    restart: always
+
+  bitcart_store:
+    image: bitcart/bitcart-store:stable
+    container_name: bitcart_store
+    command: yarn start
+    environment:
+      BITCART_STORE_API_URL: ${BITCART_API_URL:-http://localhost:8001}
+      BITCART_STORE_SERVER_API_URL: http://bitcart_api:8000
+      BITCART_ADMIN_HOST: ${BITCART_ADMIN_URL:-http://localhost:8081}
+      HOST: 0.0.0.0
+    ports:
+      - "8082:3000"
+    networks:
+      - default
+      - depthsight_network
+    extra_hosts:
+      - "${API_DOMAIN:-localhost}:host-gateway"
+    restart: always
+
+volumes:
+  bitcart_postgres_data:
+
+networks:
+  default:
+  depthsight_network:
+    external: true
+    name: depthsight_default
