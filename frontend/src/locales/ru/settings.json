@@ -37,7 +37,13 @@
 			"secretLabel": "API секрет",
 			"secretPlaceholder": "Введите ваш API секрет",
 			"addButton": "Добавить ключ",
-			"cancelButton": "Отмена"
+			"cancelButton": "Отмена",
+			"errors": {
+				"nameRequired": "Имя обязательно",
+				"exchangeRequired": "Биржа обязательна",
+				"apiKeyRequired": "API ключ обязателен",
+				"apiSecretRequired": "API секрет обязателен"
+			}
 		},
 		"deleteModalTitle": "Удалить API ключ: {{name}}",
 		"deleteModalDesc": "Вы уверены, что хотите удалить API ключ \"{{name}}\"? Это действие нельзя отменить.",

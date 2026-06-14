@@ -262,7 +262,7 @@ export const AddApiKeyModal: React.FC<AddApiKeyModalProps> = ({
 									<FormLabel>{t("apiKeys.addModal.keyLabel")}</FormLabel>
 									<FormControl>
 										<Input
-											placeholder={t("apiKeys.addModal.apiKeyPlaceholder")}
+											placeholder={t("apiKeys.addModal.keyPlaceholder")}
 											{...field}
 											value={field.value as string}
 										/>

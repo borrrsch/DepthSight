@@ -37,7 +37,13 @@
 			"secretLabel": "API Secret",
 			"secretPlaceholder": "Enter your API secret",
 			"addButton": "Add Key",
-			"cancelButton": "Cancel"
+			"cancelButton": "Cancel",
+			"errors": {
+				"nameRequired": "Name is required",
+				"exchangeRequired": "Exchange is required",
+				"apiKeyRequired": "API key is required",
+				"apiSecretRequired": "API secret is required"
+			}
 		},
 		"deleteModalTitle": "Delete API Key: {{name}}",
 		"deleteModalDesc": "Are you sure you want to delete the API key \"{{name}}\"? This action cannot be undone.",
