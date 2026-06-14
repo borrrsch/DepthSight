@@ -750,74 +750,109 @@ def run_enrichment_for_1m(
     if start_date or end_date:
         print(f"Date filter applied: {start_date} -> {end_date}")
 
+    # Group days by month to load monthly parquet file exactly once
+    months_groups = {}
     date_range = pd.date_range(start=min_date, end=max_date, freq="D")
-    days_processed = 0
-
-    for i, current_day in enumerate(date_range):
-        # Filter by launch dates
+    for current_day in date_range:
         if start_date and current_day.date() < start_date:
             continue
         if end_date and current_day.date() > end_date:
             continue
 
-        day_str = current_day.strftime("%Y-%m-%d")
-        # print(f"\n--- Processing day {i+1}/{len(date_range)}: {day_str} ---") # Too much noise
-
-        # Get mask for the current day
         day_mask = klines_df.index.date == current_day.date()
         if not day_mask.any():
             continue
 
-        # CHECK: Is there already data for this day?
-        # Check marker column ENRICHMENT_MARKER_COLUMN + a couple of other key columns
-        # If there are no NaNs in ENRICHMENT_MARKER_COLUMN for this day -> consider the day ready.
         day_slice = klines_df.loc[day_mask, ENRICHMENT_MARKER_COLUMN]
         if day_slice.notna().all():
-            print(
-                f"Day {day_str} ({i + 1}/{len(date_range)}) already enriched. Skipping."
-            )
+            print(f"Day {current_day.strftime('%Y-%m-%d')} already enriched. Skipping.")
             continue
 
-        print(f"\n>>>> Enriching day {day_str} ({i + 1}/{len(date_range)}) <<<<")
+        month_key = (current_day.year, current_day.month)
+        if month_key not in months_groups:
+            months_groups[month_key] = []
+        months_groups[month_key].append(current_day)
 
-        # Load aggTrades for the day (+ small buffer for rolling window)
-        agg_trades_day = load_aggtrades_for_range(
-            symbol, (current_day - timedelta(minutes=5)).date(), current_day.date()
+    days_processed = 0
+    total_days_to_enrich = sum(len(days) for days in months_groups.values())
+    current_day_index = 0
+
+    for (year, month), days in sorted(months_groups.items()):
+        print(f"\n--- Loading aggTrades for month: {year}-{month:02d} (found {len(days)} days to enrich) ---")
+
+        month_start = date(year, month, 1)
+        partition_path = get_target_path(
+            symbol, "aggTrades", partition_date=month_start, base_path=base_path
         )
-        # print_memory_usage(f"After loading aggTrades for {day_str}")
 
-        if agg_trades_day.empty:
-            logging.warning(
-                f"No aggTrades data for {day_str}. Tape features will not be calculated."
-            )
+        if not partition_path.exists():
+            logging.warning(f"No aggTrades partition file found: {partition_path}. Skipping this month.")
+            current_day_index += len(days)
             continue
 
-        print(f"Calculating tape features for {day_mask.sum()} rows...")
-        new_features_df = calculate_tape_features(
-            klines_df.index[day_mask], agg_trades_day
-        )
+        try:
+            print(f"Reading {partition_path}...")
+            month_trades_df = pd.read_parquet(partition_path)
+            if not month_trades_df.index.is_monotonic_increasing:
+                month_trades_df.sort_index(inplace=True)
+            if month_trades_df.index.has_duplicates:
+                month_trades_df = month_trades_df[~month_trades_df.index.duplicated(keep="last")]
+        except Exception as e:
+            logging.error(f"Failed to read partition {partition_path}: {e}")
+            current_day_index += len(days)
+            continue
 
-        # Incremental update of main DataFrame
-        # Use update or direct assignment by index
-        if not new_features_df.empty:
-            # Cast types to float32 for economy
-            new_features_df = new_features_df.astype("float32")
+        for current_day in days:
+            current_day_index += 1
+            day_str = current_day.strftime("%Y-%m-%d")
+            print(f"\n>>>> Enriching day {day_str} ({current_day_index}/{total_days_to_enrich}) <<<<")
 
-            # Align columns (if some are missing in new_features_df, add stubs, although calculate should return all)
-            # But better to just assign those that exist.
-            common_cols = new_features_df.columns.intersection(klines_df.columns)
+            day_mask = klines_df.index.date == current_day.date()
 
-            if len(common_cols) > 0:
-                klines_df.loc[new_features_df.index, common_cols] = new_features_df[
-                    common_cols
-                ]
-                days_processed += 1
-            else:
-                logging.warning(f"No common columns to update on day {day_str}!")
+            # Slice the loaded month trades for the day (+ 5 mins buffer at start)
+            day_start = pd.to_datetime(current_day.date() - timedelta(minutes=5)).tz_localize("UTC")
+            day_end = pd.to_datetime(current_day.date() + timedelta(days=1)).tz_localize("UTC")
 
-        del agg_trades_day, new_features_df
+            agg_trades_day = month_trades_df.loc[day_start:day_end]
+
+            if agg_trades_day.empty:
+                logging.warning(
+                    f"No aggTrades data in partition for {day_str}. Tape features will not be calculated."
+                )
+                continue
+
+            print(f"Calculating tape features for {day_mask.sum()} rows...")
+            new_features_df = calculate_tape_features(
+                klines_df.index[day_mask], agg_trades_day
+            )
+
+            if not new_features_df.empty:
+                new_features_df = new_features_df.astype("float32")
+                common_cols = new_features_df.columns.intersection(klines_df.columns)
+                if len(common_cols) > 0:
+                    klines_df.loc[new_features_df.index, common_cols] = new_features_df[
+                        common_cols
+                    ]
+                    days_processed += 1
+                else:
+                    logging.warning(f"No common columns to update on day {day_str}!")
+
+            del agg_trades_day, new_features_df
+            gc.collect()
+
+        del month_trades_df
         gc.collect()
-        # print_memory_usage(f"After memory cleanup for {day_str}")
+
+        # Save intermediate progress to disk after completing each month
+        if days_processed > 0:
+            print(f"\nSaving intermediate enriched file kline_1m.parquet after month {year}-{month:02d}...")
+            try:
+                if klines_df.columns.duplicated().any():
+                    klines_df = klines_df.loc[:, ~klines_df.columns.duplicated(keep="first")]
+                klines_df.to_parquet(kline_path, engine="pyarrow", compression="snappy")
+                print("Intermediate save complete.")
+            except Exception as e:
+                logging.error(f"Failed to save intermediate progress: {e}")
 
     if days_processed > 0:
         print(f"\nSuccessfully enriched {days_processed} days.")

@@ -899,7 +899,7 @@ export const useTestApiKey = () => {
 				method: "POST",
 			}),
 		onSuccess: (updatedApiKey, apiKeyId) => {
-			queryClient.setQueryData<AppConfig>(["config"], (oldConfig) => {
+			queryClient.setQueryData<AppConfig>(authScopedQueryKey("config"), (oldConfig) => {
 				if (!oldConfig) return undefined;
 				return {
 					...oldConfig,
@@ -921,7 +921,7 @@ export const useTestApiKey = () => {
 				title: "Error testing API Key",
 				description: error.message,
 			});
-			queryClient.invalidateQueries({ queryKey: ["config"] });
+			queryClient.invalidateQueries({ queryKey: authScopedQueryKey("config") });
 		},
 	});
 };
@@ -1144,7 +1144,7 @@ export const useToggleApiKeyStatus = () => {
 				body: JSON.stringify({ is_active: isActive }),
 			}),
 		onSuccess: (updatedKey, { isActive }) => {
-			queryClient.setQueryData<AppConfig>(["config"], (oldConfig) => {
+			queryClient.setQueryData<AppConfig>(authScopedQueryKey("config"), (oldConfig) => {
 				if (!oldConfig) return undefined;
 				return {
 					...oldConfig,

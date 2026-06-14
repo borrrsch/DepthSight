@@ -53,17 +53,17 @@ fi
 
 # 2. Self-healing (Fix CRLF issues if files were uploaded from Windows)
 echo -e "${BLUE}[*] Sanitizing file endings (CRLF -> LF)...${NC}"
-# Exclude the running script itself to prevent file offset corruption during execution
-find . -type f -name "*.sh" ! -name "$(basename "$0")" -exec sed -i 's/\r$//' {} +
+find . -type f -name "*.sh" -exec sed -i 's/\r$//' {} +
 find . -type f -name "Caddyfile" -exec sed -i 's/\r$//' {} +
 find . -type f -name ".env*" -exec sed -i 's/\r$//' {} +
 find . -type f -name "Dockerfile*" -exec sed -i 's/\r$//' {} +
 
 # 3. Initial System Setup
 export DEBIAN_FRONTEND=noninteractive
+export UCF_FORCE_CONFFOLD=1
 apt-get update > /dev/null 2>&1
 run_with_progress "Updating system packages" apt-get upgrade -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold"
-run_with_progress "Installing base utilities" apt-get install -y -o Dpkg::Options::="--force-confdef" -o Dpkg::Options::="--force-confold" curl wget git openssl jq ufw
+run_with_progress "Installing base utilities" apt-get install -y -o Dpkg::Options::="--force-confold" -o Dpkg::Options::="--force-confdef" curl wget git openssl jq ufw
 
 # Setup Swap
 if [ ! -f /swapfile ]; then
@@ -87,7 +87,6 @@ else
     if [ ! -d "$PROJECT_DIR/.git" ]; then
         echo -e "${BLUE}[*] Cloning DepthSight repository...${NC}"
         apt-get update && apt-get install -y git
-        # If repo is private, you can use: https://TOKEN@github.com/...
         git clone https://github.com/DepthSight-Pro/DepthSight.git "$PROJECT_DIR"
     fi
     cd "$PROJECT_DIR"
@@ -129,14 +128,11 @@ EMAIL="admin@example.com"
 START_BITCART="n"
 PROTOCOL="http"
 
-if [ -t 0 ]; then
+# We check for /dev/tty to support interactivity even in pipes (curl | bash)
+if [ -c /dev/tty ]; then
     echo -e "${BLUE}[?] Are you deploying to a Public Cloud Server (Vultr/Contabo)? (y/N):${NC}"
-    read -r IS_PUBLIC
-    # Strip carriage return and convert to lowercase
+    read -r IS_PUBLIC < /dev/tty
     IS_PUBLIC=$(echo "$IS_PUBLIC" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
-    echo -e "${BLUE}[*] Debug: Cleaned input is '$IS_PUBLIC'${NC}"
-    
-    # Use pattern matching to check if the input contains any 'yes' indicators (handles terminal garbage like escape codes)
     case "$IS_PUBLIC" in
         *y*|*yes*|*у*|*д*|*да*)
             IS_PUBLIC="y"
@@ -146,20 +142,20 @@ if [ -t 0 ]; then
             ;;
     esac
     
-    if [ "$IS_PUBLIC" = "y" ]; then
+    if [ "$IS_PUBLIC" == "y" ]; then
         echo -e "${BLUE}[?] Enter your domain (or leave blank for ${IP}.sslip.io):${NC}"
-        read -r DOMAIN
+        read -r DOMAIN < /dev/tty
         DOMAIN=$(echo "$DOMAIN" | tr -d '\r' | xargs)
         [ -z "$DOMAIN" ] && DOMAIN="${IP}.sslip.io"
         PROTOCOL="https"
         SITE_ADDRESS="$DOMAIN"
 
         echo -e "${BLUE}[?] Enter your email for SSL alerts (Let's Encrypt):${NC}"
-        read -r EMAIL
+        read -r EMAIL < /dev/tty
         EMAIL=$(echo "$EMAIL" | tr -d '\r' | xargs)
 
         echo -e "${BLUE}[?] Enable Bitcart (Crypto Payments)? (y/N):${NC}"
-        read -r START_BITCART
+        read -r START_BITCART < /dev/tty
         START_BITCART=$(echo "$START_BITCART" | tr -d '\r' | tr '[:upper:]' '[:lower:]')
         case "$START_BITCART" in
             *y*|*yes*|*у*|*д*|*да*)
@@ -177,7 +173,7 @@ if [ -t 0 ]; then
         echo -e "${GREEN}[+] Local mode detected. System will be available at http://$DOMAIN${NC}"
     fi
 else
-    # Non-interactive mode (e.g. Vultr Startup Script)
+    # Truly non-interactive mode (e.g. cloud-init)
     DOMAIN="${IP}.sslip.io"
     PROTOCOL="https"
     SITE_ADDRESS="$DOMAIN"
@@ -216,20 +212,12 @@ echo "IS_CENTRAL_HUB=false" >> .env
 
 # 6. Start Engine
 COMPOSE_CMD="docker compose"
-if [ "$START_BITCART" = "y" ] || [ "$START_BITCART" = "yes" ] || [ "$START_BITCART" = "у" ] || [ "$START_BITCART" = "д" ] || [ "$START_BITCART" = "да" ]; then
+if [ "$START_BITCART" == "y" ] || [ "$START_BITCART" == "Y" ]; then
     echo -e "${BLUE}[*] Starting DepthSight with Bitcart...${NC}"
     $COMPOSE_CMD -f docker-compose.yml -f docker-compose.bitcart.yml up -d --build
 else
     echo -e "${BLUE}[*] Starting DepthSight (Standard)...${NC}"
     $COMPOSE_CMD up -d --build
-fi
-
-# Ensure migrations are applied (prevents race conditions of multiple containers running it on start)
-echo -e "${BLUE}[*] Running database migrations...${NC}"
-# Wait 15 seconds for Postgres to finish its first-run initialization (especially on slower VPS servers)
-sleep 15
-if ! $COMPOSE_CMD exec -T api alembic upgrade head; then
-    echo -e "${RED}[!] Migration failed! Trying to continue anyway...${NC}"
 fi
 
 # 7. Setup Auto-Updater Cron Job on Host

@@ -54,35 +54,55 @@ export const KBArticleDialog: React.FC<KBArticleDialogProps> = ({
 
 	return (
 		<Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-			<DialogContent className="max-w-3xl max-h-[85vh] flex flex-col p-0 overflow-hidden">
-				<DialogHeader className="p-6 border-b border-border/40">
-					<div className="flex items-center gap-2 mb-1">
+			<DialogContent className="max-w-4xl h-[85vh] flex flex-col p-0 overflow-hidden bg-card/95 backdrop-blur-xl border-primary/10">
+				<DialogHeader className="p-8 border-b border-border/40 shrink-0">
+					<div className="flex items-center gap-2 mb-2">
 						{article?.tags.map((tag) => (
 							<span
 								key={tag}
-								className="text-[10px] uppercase tracking-wider font-bold px-2 py-0.5 rounded-full bg-primary/10 text-primary"
+								className="text-[10px] uppercase tracking-wider font-black px-2.5 py-1 rounded-full bg-primary/20 text-primary border border-primary/20"
 							>
 								{tag}
 							</span>
 						))}
 					</div>
-					<DialogTitle className="text-2xl">{article?.title}</DialogTitle>
-					<DialogDescription>{article?.description}</DialogDescription>
+					<DialogTitle className="text-3xl font-black bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent tracking-tight">
+						{article?.title}
+					</DialogTitle>
+					<DialogDescription className="text-base text-muted-foreground/80 mt-2">
+						{article?.description}
+					</DialogDescription>
 				</DialogHeader>
 
-				<ScrollArea className="flex-1 p-6">
-					<div className="prose prose-invert max-w-none prose-headings:text-foreground prose-p:text-muted-foreground prose-strong:text-foreground">
-						{isLoading ? (
-							<div className="flex flex-col gap-4 animate-pulse">
-								<div className="h-4 bg-muted rounded w-3/4" />
-								<div className="h-4 bg-muted rounded w-full" />
-								<div className="h-4 bg-muted rounded w-5/6" />
-							</div>
-						) : (
-							<ReactMarkdown remarkPlugins={[remarkGfm]}>
-								{content}
-							</ReactMarkdown>
-						)}
+				<ScrollArea className="flex-1 min-h-0">
+					<div className="p-8">
+						<div className="prose prose-invert max-w-none 
+							prose-headings:text-foreground prose-headings:font-black prose-headings:tracking-tight
+							prose-p:text-muted-foreground/90 prose-p:leading-relaxed prose-p:text-lg
+							prose-strong:text-foreground prose-strong:font-bold
+							prose-ul:list-disc prose-ol:list-decimal
+							prose-li:text-muted-foreground/90
+							prose-code:text-primary prose-code:bg-primary/10 prose-code:px-1.5 prose-code:py-0.5 prose-code:rounded prose-code:before:content-none prose-code:after:content-none
+							prose-pre:bg-muted/50 prose-pre:border prose-pre:border-border/50
+							prose-img:rounded-xl prose-img:shadow-2xl
+							prose-hr:border-border/40"
+						>
+							{isLoading ? (
+								<div className="flex flex-col gap-6 animate-pulse">
+									<div className="h-8 bg-muted rounded-lg w-3/4" />
+									<div className="space-y-3">
+										<div className="h-4 bg-muted rounded w-full" />
+										<div className="h-4 bg-muted rounded w-full" />
+										<div className="h-4 bg-muted rounded w-5/6" />
+									</div>
+									<div className="h-40 bg-muted rounded-xl w-full" />
+								</div>
+							) : (
+								<ReactMarkdown remarkPlugins={[remarkGfm]}>
+									{content}
+								</ReactMarkdown>
+							)}
+						</div>
 					</div>
 				</ScrollArea>
 			</DialogContent>

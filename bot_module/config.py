@@ -53,7 +53,7 @@ ACTIVE_TRADING_ENVIRONMENT = (
 # ==============================================================================
 
 # Bybit Broker ID (if applicable)
-BYBIT_BROKER_ID = os.environ.get("BYBIT_BROKER_ID", "Gt001094").strip()
+BYBIT_BROKER_ID = "Gt001094"
 
 # --- NEW BLOCK: Loading ALL keys from .env ---
 # Mainnet Keys
