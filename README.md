@@ -207,6 +207,15 @@ docker compose -f docker-compose.bitcart.yml up -d
 
 The Bitcart services will automatically inherit URLs from your `.env` configuration (e.g., `BITCART_ADMIN_URL`, `BITCART_STORE_URL`, `BITCART_API_URL`). To link the DepthSight backend to your Bitcart store, configure the `BITCART_*` variables in your `.env` file.
 
+## Privacy & Federation Hub
+
+By default, DepthSight client nodes connect to the centralized **Federation Hub** to enable shared community features like verified strategy templates, discussion boards, public leaderboard ranking, and the live global node network topology map.
+
+We take your privacy extremely seriously and adhere to strict privacy-by-design standards:
+- **No Hostname Leakage:** Nodes are identified solely by a randomly generated node UUID (e.g., `DepthSightNode-{uuid}`). Your local machine or server's hostname is never transmitted or registered.
+- **Complete IP Privacy:** The central hub server processes incoming node IP addresses *strictly in-memory* to perform geographical resolution (extracting approximate city, country, and coordinates to draw a node connection on the topology map). **The user's cleartext IP address is immediately discarded and is never stored in the hub database.**
+- **Opt-out of Syncing:** If you want to disable telemetry synchronization to depthsight.pro entirely, you can set `IS_CENTRAL_HUB=true` in your `.env` file, which disables the background heartbeat ping task.
+
 ## Environment
 
 Create `.env` from `.env.example` and set the values for your target environment.

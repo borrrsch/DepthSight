@@ -422,8 +422,8 @@ async def post_hub_feedback(
     and creates a corresponding admin support ticket.
     """
     try:
-        ip = request.client.host if request.client else None
-        await crud.create_hub_feedback(db, feedback_data=feedback, ip_address=ip)
+        # IP is not stored to respect complete user privacy
+        await crud.create_hub_feedback(db, feedback_data=feedback, ip_address=None)
 
         # Find an admin or any user to associate with the support ticket (since user_id is required)
         from sqlalchemy.future import select
@@ -979,7 +979,7 @@ async def register_hub_node(
         if existing:
             existing.name = node_in.name
             existing.secret_hash = secret_hash
-            existing.ip_address = ip
+            existing.ip_address = None
             existing.latitude = geo["lat"]
             existing.longitude = geo["lon"]
             existing.city = geo["city"]
@@ -992,7 +992,7 @@ async def register_hub_node(
                 node_uuid=node_in.node_uuid,
                 name=node_in.name,
                 secret_hash=secret_hash,
-                ip_address=ip,
+                ip_address=None,
                 latitude=geo["lat"],
                 longitude=geo["lon"],
                 city=geo["city"],

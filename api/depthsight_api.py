@@ -1154,7 +1154,6 @@ async def create_redis_client_instance() -> redis.Redis:
 
 
 async def perform_node_hub_sync():
-    import socket
     import time
     from pathlib import Path
 
@@ -1184,7 +1183,7 @@ async def perform_node_hub_sync():
     if not node_uuid or not node_secret:
         node_uuid = str(uuid.uuid4())
         node_secret = secrets.token_hex(32)
-        node_name = f"DepthSightNode-{socket.gethostname()}-{node_uuid[:6]}"
+        node_name = f"DepthSightNode-{node_uuid[:8]}"
 
         try:
             async with aiohttp.ClientSession() as session:
