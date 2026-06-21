@@ -686,7 +686,19 @@
 		"trading_session": {
 			"title": "Trading Session",
 			"desc": "Filter by trading session time (London, New York, etc.).",
-			"text": "Trade during"
+			"text": "Trade during",
+			"modes": {
+				"session": "By Session",
+				"hours": "By Hours"
+			},
+			"sessions": {
+				"london": "London",
+				"new_york": "New York",
+				"asia": "Asia",
+				"sydney": "Sydney"
+			},
+			"include": "Include",
+			"exclude": "Exclude"
 		},
 		"volatility_filter": {
 			"title": "Volatility Filter",
@@ -984,6 +996,42 @@
 				"from_above": "From above",
 				"from_below": "From below"
 			}
+		},
+		"volatility_squeeze": {
+			"title": "Volatility Squeeze",
+			"desc": "Detects narrowing trading ranges."
+		},
+		"market_activity": {
+			"title": "Market Activity",
+			"desc": "Check NATR / Relative Volume."
+		},
+		"dca_management": {
+			"title": "DCA Management",
+			"desc": "Automatic position averaging via martingale or custom conditions."
+		},
+		"grid_management": {
+			"title": "GRID Management",
+			"desc": "Place a grid of limit orders within a specified range."
+		},
+		"tradingview_signal": {
+			"title": "TradingView Signal",
+			"desc": "Awaits a TradingView webhook with a specific ID."
+		},
+		"price_action_analyzer": {
+			"title": "Price Action Analyzer",
+			"desc": "Recognizes structural patterns (HH/HL, LH/LL)."
+		},
+		"level_touch_analyzer": {
+			"title": "Level Touch Analyzer",
+			"desc": "Precise touch, breakout, or retest of a level."
+		},
+		"modify_take_profit": {
+			"title": "Modify Take Profit",
+			"desc": "Move TP to a new price."
+		},
+		"close_position": {
+			"title": "Close Position",
+			"desc": "Close the position at market."
 		},
 		"unknown_block": "Unknown Block",
 		"confirm_delete_block": "Are you sure you want to delete this block?",

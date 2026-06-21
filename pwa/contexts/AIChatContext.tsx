@@ -125,6 +125,8 @@ export const AIChatProvider = ({ children }: { children: ReactNode }) => {
 							role: msg.role === "assistant" ? "ai" : "user",
 							content: content,
 							strategy_json: strategyJson,
+							image_base64: msg.image_base64,
+							image_mime_type: msg.image_mime_type,
 						};
 					});
 					setMessages(messages);
@@ -205,7 +207,7 @@ export const AIChatProvider = ({ children }: { children: ReactNode }) => {
 		initializeChat();
 	}, [startNewSession, loadSession]);
 
-	const sendMessage = async (content: string) => {
+	const sendMessage = async (content: string, image_base64?: string, image_mime_type?: string) => {
 		if (!sessionId) {
 			console.error("Cannot send message: no session ID.");
 			return;
@@ -215,6 +217,8 @@ export const AIChatProvider = ({ children }: { children: ReactNode }) => {
 			id: `user-${Date.now()}`,
 			role: "user",
 			content,
+			image_base64,
+			image_mime_type,
 		};
 		setMessages((prev) => [...prev, userMessage]);
 
@@ -223,6 +227,8 @@ export const AIChatProvider = ({ children }: { children: ReactNode }) => {
 				session_id: sessionId,
 				text_prompt: content,
 				backtest_id: backtestId,
+				image_base64,
+				image_mime_type,
 			});
 
 			const aiResponseMessage: Message = {

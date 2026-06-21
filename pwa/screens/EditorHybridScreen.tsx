@@ -93,7 +93,12 @@ const EditorHybridScreen: React.FC<EditorHybridScreenProps> = ({
 	};
 
 	const handleRunBacktest = useCallback(
-		async (details: { symbol: string; startDate: string; endDate: string }) => {
+		async (details: {
+			symbol: string;
+			startDate: string;
+			endDate: string;
+			backtestEngine: "vector" | "kline";
+		}) => {
 			try {
 				const configData = toJson();
 				const request: BacktestRequest = {
@@ -106,6 +111,7 @@ const EditorHybridScreen: React.FC<EditorHybridScreenProps> = ({
 						| "futures",
 					params: {
 						config: configData,
+						backtest_engine: details.backtestEngine,
 					},
 				};
 				await api.runBacktest(request);
@@ -137,24 +143,20 @@ const EditorHybridScreen: React.FC<EditorHybridScreenProps> = ({
 				foundation_weights: storeState.useFoundationWeights
 					? storeState.foundationWeights
 					: null,
+				oracle_regime: storeState.oracleRegime,
+				oracle_confidence: storeState.oracleConfidence,
+				symbol_selection_mode: storeState.symbol_selection_mode === "STATIC" ? "STATIC" : "DYNAMIC" as "STATIC" | "DYNAMIC",
+				symbols: storeState.symbol_selection_mode === "STATIC" ? [storeState.symbol] : [],
 			};
 
 			if (storeState.id) {
 				savedStrategy = await api.updateStrategyConfig(
 					storeState.id,
-					{
-						name: payload.name,
-						description: payload.description || undefined,
-						config_data: payload.config_data
-					}
+					payload
 				);
 			} else {
 				savedStrategy = await api.saveStrategy(
-					{
-						name: payload.name,
-						description: payload.description || "",
-						config_data: payload.config_data
-					}
+					payload
 				);
 			}
 			toast.success(

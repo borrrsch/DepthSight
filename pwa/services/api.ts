@@ -177,6 +177,8 @@ interface AiChatRequest {
 	backtest_id?: string | null;
 	strategy_json?: StrategyConfigData;
 	history?: Message[];
+	image_base64?: string;
+	image_mime_type?: string;
 }
 
 interface AiChatResponse {
@@ -239,6 +241,8 @@ export const api = {
 		apiFetch<void>(`/ai/chat/history/${sessionId}`, {
 			method: "DELETE",
 		}),
+	getBlockRestrictions: (): Promise<{ proOnly: string[]; klineOnly: string[] }> =>
+		apiFetch<{ proOnly: string[]; klineOnly: string[] }>("/config/block-restrictions"),
 
 	shareBacktest: (
 		payload: ShareBacktestPayload,
@@ -288,6 +292,12 @@ export const api = {
 		name: string;
 		description: string;
 		config_data: StrategyConfigData;
+		use_ml_confirmation?: boolean;
+		foundation_weights?: Record<string, number> | null;
+		oracle_regime?: number | null;
+		oracle_confidence?: number;
+		symbol_selection_mode?: "DYNAMIC" | "STATIC";
+		symbols?: string[] | null;
 	}): Promise<StrategyConfigDB> =>
 		apiFetch<StrategyConfigDB>("/strategies/config", {
 			method: "POST",
@@ -295,7 +305,17 @@ export const api = {
 		}),
 	updateStrategyConfig: (
 		configId: string,
-		data: { name?: string; description?: string; config_data?: StrategyConfigData },
+		data: {
+			name?: string;
+			description?: string;
+			config_data?: StrategyConfigData;
+			use_ml_confirmation?: boolean;
+			foundation_weights?: Record<string, number> | null;
+			oracle_regime?: number | null;
+			oracle_confidence?: number;
+			symbol_selection_mode?: "DYNAMIC" | "STATIC";
+			symbols?: string[] | null;
+		},
 	): Promise<StrategyConfigDB> =>
 		apiFetch<StrategyConfigDB>(`/strategies/config/${configId}`, {
 			method: "PUT",

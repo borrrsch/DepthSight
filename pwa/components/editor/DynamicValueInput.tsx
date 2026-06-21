@@ -15,6 +15,7 @@ interface DynamicValueInputProps {
 	value: DynamicParam;
 	onChange: (value: DynamicParam) => void;
 	disabled?: boolean;
+	className?: string;
 }
 
 const formatLinkedValue = (value: DynamicParam, t: TFunction): string => {
@@ -39,6 +40,7 @@ export const DynamicValueInput: React.FC<DynamicValueInputProps> = ({
 	value,
 	onChange,
 	disabled,
+	className = "w-full",
 }) => {
 	const { t } = useTranslation("pwa-common");
 	const [isPickerVisible, setIsPickerVisible] = useState(false);
@@ -83,7 +85,7 @@ export const DynamicValueInput: React.FC<DynamicValueInputProps> = ({
 	};
 
 	return (
-		<div className="w-full" ref={wrapperRef}>
+		<div className={className} ref={wrapperRef}>
 			<div className="relative flex items-center gap-1">
 				<input
 					type="number"

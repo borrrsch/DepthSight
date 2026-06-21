@@ -1,7 +1,7 @@
 // pwa/sw.js
 
 const CACHE_NAME = "depthsight-cache-v2";
-const urlsToCache = ["/", "/index.html", "/index.css", "/assets/icon.svg"];
+const urlsToCache = ["./", "index.html", "favicon.ico", "assets/icon.svg"];
 
 // Install event: open cache and add app shell files
 self.addEventListener("install", (event) => {
@@ -62,7 +62,7 @@ self.addEventListener("fetch", (event) => {
 		event.respondWith(
 			fetch(event.request).catch(() => {
 				// If the network fails, fall back to the cache
-				return caches.match("/index.html");
+				return caches.match("index.html");
 			}),
 		);
 		return;
@@ -97,7 +97,7 @@ self.addEventListener("push", (event) => {
 	event.waitUntil(
 		self.registration.showNotification(title, {
 			body: body,
-			icon: "/assets/icon.svg", // Path to your app icon
+			icon: "assets/icon.svg", // Path to your app icon
 			vibrate: [200, 100, 200],
 			tag: tag,
 			renotify: true,

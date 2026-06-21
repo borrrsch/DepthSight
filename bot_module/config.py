@@ -52,7 +52,19 @@ ACTIVE_TRADING_ENVIRONMENT = (
 # Binance API Credentials
 # ==============================================================================
 
-# Bybit Broker ID (if applicable)
+# ==============================================================================
+# HEY, OPEN-SOURCE ENTHUSIAST! 👋
+# Yes, this is my Bybit Broker ID.
+# You are 100% free to delete this line (it's open-source, after all).
+#
+# BUT BEFORE YOU DO:
+# 1. It costs you NOTHING. Your trading fees remain exactly the same.
+# 2. Deleting this will cause merge conflicts and break your UI auto-updates.
+# 3. If you leave it, Bybit shares a tiny fraction of their fee with me,
+#    which helps me pay for servers and keep building this project for you.
+#
+# Choose wisely, and happy trading! <3
+# ==============================================================================
 BYBIT_BROKER_ID = "Gt001094"
 
 # --- NEW BLOCK: Loading ALL keys from .env ---

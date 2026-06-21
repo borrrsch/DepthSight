@@ -81,6 +81,70 @@ const ParamSelect: React.FC<{
 	</select>
 );
 
+const LevelBlockSelect: React.FC<{
+	value: string | null | undefined;
+	onChange: (val: string) => void;
+	t: TranslationFunction;
+}> = ({ value, onChange, t }) => {
+	const store = useStrategyEditorStore();
+	const filters = store.filters;
+	const entryConditions = store.entryConditions;
+	const positionManagement = store.positionManagement;
+
+	const collectLevelProviderBlocks = (block?: any): any[] => {
+		if (!block) return [];
+		const current = ["local_level", "significant_level"].includes(block.type)
+			? [block]
+			: [];
+		return [
+			...current,
+			...(block.children || []).flatMap(collectLevelProviderBlocks),
+		];
+	};
+
+	const collectManagementLevelProviderBlocks = (
+		blocks: any[],
+	): any[] => {
+		return blocks.flatMap((block) => {
+			const b = block as unknown as Record<string, unknown>;
+			return [
+				...(block.children || []).flatMap(collectLevelProviderBlocks),
+				...(b.if_conditions
+					? collectLevelProviderBlocks(b.if_conditions as any)
+					: []),
+				...(Array.isArray(b.then_actions)
+					? collectManagementLevelProviderBlocks(
+							b.then_actions as any[],
+						)
+					: []),
+			];
+		});
+	};
+
+	const options = useMemo(() => {
+		return [
+			...collectLevelProviderBlocks(filters),
+			...collectLevelProviderBlocks(entryConditions),
+			...collectManagementLevelProviderBlocks(positionManagement),
+		];
+	}, [filters, entryConditions, positionManagement]);
+
+	const selectItems = options.map((opt) => ({
+		value: opt.id,
+		label: `${t(`blocks.${opt.type}.title`) || opt.type} [${opt.id.substring(0, 4)}]`,
+	}));
+
+	return (
+		<ParamSelect
+			value={value || undefined}
+			onChange={onChange}
+			items={selectItems}
+			placeholder={t("dynamic_sources.block_results.title", "Block Results")}
+			className="w-full flex-grow flex-1 min-w-0"
+		/>
+	);
+};
+
 const renderBlockContent = (
 	block: ConditionBlock | ManagementBlock,
 	updateParams: (p: Record<string, any>) => void,
@@ -91,16 +155,17 @@ const renderBlockContent = (
 		updateParams({ [key]: parseFloat(value) || 0 });
 
 	switch (block.type as ComponentType) {
-		case "market_activity":
+		case "market_activity": {
+			const mode = p.mode || "relative";
 			return (
 				<>
 					<ParamRow title="Mode">
 						<ParamSelect
-							value={p.mode}
+							value={mode}
 							onChange={(v) => updateParams({ mode: v })}
 							items={[
-								{ value: "percentile", label: "Percentile" },
-								{ value: "threshold", label: "Threshold" },
+								{ value: "relative", label: "Relative Volume" },
+								{ value: "percentile", label: "Percentile Spike" },
 							]}
 						/>
 					</ParamRow>
@@ -108,16 +173,30 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.natr_threshold}
 							onChange={(v) => updateParams({ natr_threshold: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
-					<ParamRow title="Relative volume">
-						<DynamicValueInput
-							value={p.rel_vol_threshold}
-							onChange={(v) => updateParams({ rel_vol_threshold: v })}
-						/>
-					</ParamRow>
+					{mode !== "percentile" && (
+						<>
+							<ParamRow title="Relative volume">
+								<DynamicValueInput
+									value={p.rel_vol_threshold}
+									onChange={(v) => updateParams({ rel_vol_threshold: v })}
+									className="flex-grow flex-1 min-w-0"
+								/>
+							</ParamRow>
+							<ParamRow title="Lookback period">
+								<DynamicValueInput
+									value={p.lookback_period || 20}
+									onChange={(v) => updateParams({ lookback_period: v })}
+									className="flex-grow flex-1 min-w-0"
+								/>
+							</ParamRow>
+						</>
+					)}
 				</>
 			);
+		}
 		case "l2_microstructure":
 		case "l2_microstructure_check":
 			return (
@@ -140,6 +219,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.single_order_size_usd}
 							onChange={(v) => updateParams({ single_order_size_usd: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -159,11 +239,10 @@ const renderBlockContent = (
 					<ParamRow
 						title={t("blocks.tradingview_signal.ttl_label", "TTL seconds")}
 					>
-						<SimpleInput
-							value={p.ttl_seconds || ""}
-							onChange={(e) =>
-								handleNumberChange("ttl_seconds", e.target.value)
-							}
+						<DynamicValueInput
+							value={p.ttl_seconds}
+							onChange={(v) => updateParams({ ttl_seconds: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -177,43 +256,55 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.level_source}
 							onChange={(v) => updateParams({ level_source: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Lookback">
-						<DynamicValueInput
-							value={p.lookback_candles}
-							onChange={(v) => updateParams({ lookback_candles: v })}
+						<SimpleInput
+							value={p.lookback_candles || 50}
+							onChange={(e) => handleNumberChange("lookback_candles", e.target.value)}
 						/>
 					</ParamRow>
 					<ParamRow title="Tolerance %">
-						<DynamicValueInput
-							value={p.touch_tolerance_pct}
-							onChange={(v) => updateParams({ touch_tolerance_pct: v })}
+						<SimpleInput
+							value={p.touch_tolerance_pct || 0.1}
+							onChange={(e) => handleNumberChange("touch_tolerance_pct", e.target.value)}
 						/>
 					</ParamRow>
 					<ParamRow title="Min touches">
-						<DynamicValueInput
-							value={p.min_touches}
-							onChange={(v) => updateParams({ min_touches: v })}
+						<SimpleInput
+							value={p.min_touches || 1}
+							onChange={(e) => handleNumberChange("min_touches", e.target.value)}
 						/>
+					</ParamRow>
+					<ParamRow title="Options">
+						<label className="flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
+							<input
+								type="checkbox"
+								checked={p.invalidate_on_pierce ?? true}
+								onChange={(e) =>
+									updateParams({ invalidate_on_pierce: e.target.checked })
+								}
+								className="form-checkbox h-4 w-4 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded"
+							/>
+							<span>{t("blocks.level_touch_analyzer.invalidate", "No pierce")}</span>
+						</label>
 					</ParamRow>
 				</>
 			);
 		case "volatility_squeeze":
 			return (
 				<>
-					<ParamRow
-						title={t("blocks.volatility_squeeze.text", "Volatility squeeze")}
-					>
-						<DynamicValueInput
-							value={p.lookback_candles}
-							onChange={(v) => updateParams({ lookback_candles: v })}
+					<ParamRow title="Lookback">
+						<SimpleInput
+							value={p.lookback_candles || 20}
+							onChange={(e) => handleNumberChange("lookback_candles", e.target.value)}
 						/>
 					</ParamRow>
 					<ParamRow title="Squeeze ratio">
-						<DynamicValueInput
-							value={p.squeeze_ratio}
-							onChange={(v) => updateParams({ squeeze_ratio: v })}
+						<SimpleInput
+							value={p.squeeze_ratio || 0.6}
+							onChange={(e) => handleNumberChange("squeeze_ratio", e.target.value)}
 						/>
 					</ParamRow>
 				</>
@@ -232,15 +323,21 @@ const renderBlockContent = (
 						/>
 					</ParamRow>
 					<ParamRow title="Lookback">
-						<DynamicValueInput
-							value={p.lookback_candles}
-							onChange={(v) => updateParams({ lookback_candles: v })}
+						<SimpleInput
+							value={p.lookback_candles || 30}
+							onChange={(e) => handleNumberChange("lookback_candles", e.target.value)}
 						/>
 					</ParamRow>
 					<ParamRow title="Min points">
-						<DynamicValueInput
-							value={p.min_points}
-							onChange={(v) => updateParams({ min_points: v })}
+						<SimpleInput
+							value={p.min_points || 2}
+							onChange={(e) => handleNumberChange("min_points", e.target.value)}
+						/>
+					</ParamRow>
+					<ParamRow title="Order">
+						<SimpleInput
+							value={p.order || 3}
+							onChange={(e) => handleNumberChange("order", e.target.value)}
 						/>
 					</ParamRow>
 				</>
@@ -265,6 +362,7 @@ const renderBlockContent = (
 							<DynamicValueInput
 								value={p.activation_price_value}
 								onChange={(v) => updateParams({ activation_price_value: v })}
+								className="flex-grow flex-1 min-w-0"
 							/>
 						</ParamRow>
 						<ParamRow title="Trailing offset">
@@ -280,6 +378,7 @@ const renderBlockContent = (
 							<DynamicValueInput
 								value={p.trailing_offset_value}
 								onChange={(v) => updateParams({ trailing_offset_value: v })}
+								className="flex-grow flex-1 min-w-0"
 							/>
 						</ParamRow>
 					</>
@@ -300,6 +399,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.value}
 							onChange={(v) => updateParams({ value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Mode">
@@ -330,6 +430,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.trigger_price_value}
 							onChange={(v) => updateParams({ trigger_price_value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				);
@@ -350,6 +451,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.target_value}
 							onChange={(v) => updateParams({ target_value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Offset pips">
@@ -370,6 +472,7 @@ const renderBlockContent = (
 					<DynamicValueInput
 						value={p.new_tp_price}
 						onChange={(v) => updateParams({ new_tp_price: v })}
+						className="flex-grow flex-1 min-w-0"
 					/>
 				</ParamRow>
 			);
@@ -398,6 +501,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.volume_multiplier}
 							onChange={(v) => updateParams({ volume_multiplier: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Step">
@@ -414,6 +518,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.step_value}
 							onChange={(v) => updateParams({ step_value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -444,31 +549,82 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.upper_bound}
 							onChange={(v) => updateParams({ upper_bound: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title={t("blocks.grid_management.lower", "Lower")}>
 						<DynamicValueInput
 							value={p.lower_bound}
 							onChange={(v) => updateParams({ lower_bound: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
 			);
-		case "trading_session":
+		case "trading_session": {
+			const filterMode =
+				p.filter_mode ||
+				(p.start_hour !== undefined || p.end_hour !== undefined
+					? "hours"
+					: "session");
+			const startH = p.start_hour_utc ?? p.start_hour ?? 0;
+			const endH = p.end_hour_utc ?? p.end_hour ?? 23;
+			const mode = p.mode || "include";
+
 			return (
-				<ParamRow title={t("blocks.trading_session.text")}>
-					<ParamSelect
-						value={p.session}
-						onChange={(v) => updateParams({ session: v })}
-						items={[
-							{ value: "london", label: "London" },
-							{ value: "new_york", label: "New York" },
-							{ value: "asia", label: "Asia" },
-							{ value: "sydney", label: "Sydney" },
-						]}
-					/>
-				</ParamRow>
+				<>
+					<ParamRow title="Mode">
+						<ParamSelect
+							value={filterMode}
+							onChange={(v) => updateParams({ filter_mode: v })}
+							items={[
+								{ value: "session", label: t("blocks.trading_session.modes.session") || "By Session" },
+								{ value: "hours", label: t("blocks.trading_session.modes.hours") || "By Hours" },
+							]}
+						/>
+					</ParamRow>
+					{filterMode === "hours" ? (
+						<>
+							<ParamRow title="Start Hour (UTC)">
+								<SimpleInput
+									value={startH}
+									onChange={(e) => updateParams({ start_hour_utc: parseInt(e.target.value, 10) || 0 })}
+								/>
+							</ParamRow>
+							<ParamRow title="End Hour (UTC)">
+								<SimpleInput
+									value={endH}
+									onChange={(e) => updateParams({ end_hour_utc: parseInt(e.target.value, 10) || 23 })}
+								/>
+							</ParamRow>
+							<ParamRow title="Action">
+								<ParamSelect
+									value={mode}
+									onChange={(v) => updateParams({ mode: v })}
+									items={[
+										{ value: "include", label: t("blocks.trading_session.include") || "Include" },
+										{ value: "exclude", label: t("blocks.trading_session.exclude") || "Exclude" },
+									]}
+								/>
+							</ParamRow>
+						</>
+					) : (
+						<ParamRow title="Session">
+							<ParamSelect
+								value={p.session || "london"}
+								onChange={(v) => updateParams({ session: v })}
+								items={[
+									{ value: "london", label: t("blocks.trading_session.sessions.london") || "London" },
+									{ value: "new_york", label: t("blocks.trading_session.sessions.new_york") || "New York" },
+									{ value: "asia", label: t("blocks.trading_session.sessions.asia") || "Asia" },
+									{ value: "sydney", label: t("blocks.trading_session.sessions.sydney") || "Sydney" },
+								]}
+							/>
+						</ParamRow>
+					)}
+				</>
 			);
+		}
 		case "volatility_filter":
 			return (
 				<>
@@ -495,6 +651,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.value}
 							onChange={(v) => updateParams({ value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -512,6 +669,7 @@ const renderBlockContent = (
 					<DynamicValueInput
 						value={p.threshold}
 						onChange={(v) => updateParams({ threshold: v })}
+						className="flex-grow flex-1 min-w-0"
 					/>
 				</ParamRow>
 			);
@@ -523,18 +681,18 @@ const renderBlockContent = (
 						onChange={(v) => updateParams({ required_state: v })}
 						items={[
 							{
-								value: "consolidation",
+								value: "Consolidation",
 								label: t("blocks.btc_state_filter.states.consolidation"),
 							},
 							{
-								value: "trending_up",
+								value: "Trending Up",
 								label: t("blocks.btc_state_filter.states.trending_up"),
 							},
 							{
-								value: "trending_down",
+								value: "Trending Down",
 								label: t("blocks.btc_state_filter.states.trending_down"),
 							},
-							{ value: "any", label: t("blocks.btc_state_filter.states.any") },
+							{ value: "Any", label: t("blocks.btc_state_filter.states.any") },
 						]}
 					/>
 				</ParamRow>
@@ -546,6 +704,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.lookback}
 							onChange={(v) => updateParams({ lookback: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Condition">
@@ -561,6 +720,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.value}
 							onChange={(v) => updateParams({ value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -571,17 +731,28 @@ const renderBlockContent = (
 					<DynamicValueInput
 						value={p.natr_threshold}
 						onChange={(v) => updateParams({ natr_threshold: v })}
+						className="flex-grow flex-1 min-w-0"
 					/>
 				</ParamRow>
 			);
 		case "rel_vol_filter":
 			return (
-				<ParamRow title="Rel. volume threshold >">
-					<DynamicValueInput
-						value={p.rel_vol_threshold}
-						onChange={(v) => updateParams({ rel_vol_threshold: v })}
-					/>
-				</ParamRow>
+				<>
+					<ParamRow title="Rel. volume threshold >">
+						<DynamicValueInput
+							value={p.rel_vol_threshold}
+							onChange={(v) => updateParams({ rel_vol_threshold: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Lookback period">
+						<DynamicValueInput
+							value={p.lookback_period || 20}
+							onChange={(v) => updateParams({ lookback_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+				</>
 			);
 		case "open_interest":
 			return (
@@ -608,6 +779,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.lookback}
 							onChange={(v) => updateParams({ lookback: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Condition">
@@ -623,6 +795,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.value}
 							onChange={(v) => updateParams({ value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -660,6 +833,7 @@ const renderBlockContent = (
 							onChange={(v: DynamicParam) =>
 								updateParams({ proximity_value: v })
 							}
+							className="flex-grow flex-1 min-w-0"
 						/>
 						<ParamSelect
 							value={p.proximity_type}
@@ -685,6 +859,7 @@ const renderBlockContent = (
 					<DynamicValueInput
 						value={p.proximity_value}
 						onChange={(v: DynamicParam) => updateParams({ proximity_value: v })}
+						className="flex-grow flex-1 min-w-0"
 					/>
 					<ParamSelect
 						value={p.proximity_type}
@@ -797,45 +972,74 @@ const renderBlockContent = (
 			);
 		case "volume_confirmation":
 			return (
-				<ParamRow title={t("blocks.volume_confirmation.text")}>
-					<SimpleInput
-						value={p.multiplier || ""}
-						onChange={(e) => handleNumberChange("multiplier", e.target.value)}
-					/>
-					<span className="text-muted-foreground">
-						{t("blocks.volume_confirmation.x_average")}
-					</span>
-				</ParamRow>
+				<>
+					<ParamRow title={t("blocks.volume_confirmation.text")}>
+						<DynamicValueInput
+							value={p.multiplier}
+							onChange={(v) => updateParams({ multiplier: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+						<span className="text-muted-foreground whitespace-nowrap">
+							{t("blocks.volume_confirmation.x_average") || "x average"}
+						</span>
+					</ParamRow>
+					<ParamRow title="Lookback period">
+						<DynamicValueInput
+							value={p.lookback_period || 20}
+							onChange={(v) => updateParams({ lookback_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+				</>
 			);
 		case "price_consolidation":
 			return (
 				<>
+					<ParamRow title="Timeframe">
+						<ParamSelect
+							value={p.timeframe || "auto"}
+							onChange={(v) => updateParams({ timeframe: v })}
+							items={[
+								{ value: "auto", label: "Auto" },
+								{ value: "1m", label: "1m" },
+								{ value: "5m", label: "5m" },
+								{ value: "15m", label: "15m" },
+								{ value: "1h", label: "1h" },
+								{ value: "4h", label: "4h" },
+								{ value: "1d", label: "1d" },
+							]}
+						/>
+					</ParamRow>
 					<ParamRow title="Period (bars)">
 						<DynamicValueInput
 							value={p.lookback_period}
 							onChange={(v) => updateParams({ lookback_period: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Max range (in ATR)">
 						<DynamicValueInput
 							value={p.max_range_atr}
 							onChange={(v) => updateParams({ max_range_atr: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
 			);
-		case "return_to_level":
+		case "return_to_level": {
+			const retestType = p.retest_type || "touch";
 			return (
 				<>
 					<ParamRow title="Level block ID">
-						<DynamicValueInput
+						<LevelBlockSelect
 							value={p.level_block_id}
 							onChange={(v) => updateParams({ level_block_id: v })}
+							t={t}
 						/>
 					</ParamRow>
 					<ParamRow title="Retest type">
 						<ParamSelect
-							value={p.retest_type}
+							value={retestType}
 							onChange={(v) => updateParams({ retest_type: v })}
 							items={[
 								{ value: "touch", label: "Touch" },
@@ -843,21 +1047,69 @@ const renderBlockContent = (
 							]}
 						/>
 					</ParamRow>
+					<ParamRow title="Approach direction">
+						<ParamSelect
+							value={p.approach_direction || "any"}
+							onChange={(v) => updateParams({ approach_direction: v })}
+							items={[
+								{ value: "any", label: t("blocks.return_to_level.directions.any") || "Any direction" },
+								{ value: "from_above", label: t("blocks.return_to_level.directions.from_above") || "From above" },
+								{ value: "from_below", label: t("blocks.return_to_level.directions.from_below") || "From below" },
+							]}
+						/>
+					</ParamRow>
 					<ParamRow title="Confirmation time (sec)">
 						<DynamicValueInput
 							value={p.confirmation_time_sec}
 							onChange={(v) => updateParams({ confirmation_time_sec: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
+					<ParamRow title="Proximity">
+						<DynamicValueInput
+							value={p.proximity_value ?? p.proximity_multiplier}
+							onChange={(v) => updateParams({ proximity_value: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+						<ParamSelect
+							value={p.proximity_type || "atr_multiplier"}
+							onChange={(v) => updateParams({ proximity_type: v })}
+							items={[
+								{ value: "atr_multiplier", label: "ATR" },
+								{ value: "percentage", label: "%" },
+							]}
+							className="w-24"
+						/>
+					</ParamRow>
+					{retestType === "breakout_retest" && (
+						<ParamRow title="Departure">
+							<DynamicValueInput
+								value={p.departure_value ?? p.departure_multiplier}
+								onChange={(v) => updateParams({ departure_value: v })}
+								className="flex-grow flex-1 min-w-0"
+							/>
+							<ParamSelect
+								value={p.departure_type || "atr_multiplier"}
+								onChange={(v) => updateParams({ departure_type: v })}
+								items={[
+									{ value: "atr_multiplier", label: "ATR" },
+									{ value: "percentage", label: "%" },
+								]}
+								className="w-24"
+							/>
+						</ParamRow>
+					)}
 				</>
 			);
+		}
 		case "rsi_condition":
 			return (
 				<>
 					<ParamRow title="RSI period">
-						<SimpleInput
-							value={p.period || ""}
-							onChange={(e) => handleNumberChange("period", e.target.value)}
+						<DynamicValueInput
+							value={p.period}
+							onChange={(v) => updateParams({ period: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Condition">
@@ -871,14 +1123,15 @@ const renderBlockContent = (
 							]}
 							className="w-24"
 						/>
-						<SimpleInput
-							value={p.value || ""}
-							onChange={(e) => handleNumberChange("value", e.target.value)}
+						<DynamicValueInput
+							value={p.value}
+							onChange={(v) => updateParams({ value: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Offset (bars back)">
 						<SimpleInput
-							value={p.shift || ""}
+							value={p.shift || 0}
 							onChange={(e) => handleNumberChange("shift", e.target.value)}
 						/>
 					</ParamRow>
@@ -888,19 +1141,17 @@ const renderBlockContent = (
 			return (
 				<>
 					<ParamRow title="Fast MA">
-						<SimpleInput
-							value={p.fast_period || ""}
-							onChange={(e) =>
-								handleNumberChange("fast_period", e.target.value)
-							}
+						<DynamicValueInput
+							value={p.fast_period || p.fast}
+							onChange={(v) => updateParams({ fast_period: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Slow MA">
-						<SimpleInput
-							value={p.slow_period || ""}
-							onChange={(e) =>
-								handleNumberChange("slow_period", e.target.value)
-							}
+						<DynamicValueInput
+							value={p.slow_period || p.slow}
+							onChange={(v) => updateParams({ slow_period: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Crossover">
@@ -915,7 +1166,7 @@ const renderBlockContent = (
 					</ParamRow>
 					<ParamRow title="Offset (bars back)">
 						<SimpleInput
-							value={p.shift || ""}
+							value={p.shift || 0}
 							onChange={(e) => handleNumberChange("shift", e.target.value)}
 						/>
 					</ParamRow>
@@ -928,6 +1179,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.leftOperand}
 							onChange={(v) => updateParams({ leftOperand: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Operator">
@@ -946,6 +1198,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.rightOperand}
 							onChange={(v) => updateParams({ rightOperand: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -957,6 +1210,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.price_source}
 							onChange={(v) => updateParams({ price_source: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 					<ParamRow title="Operator">
@@ -973,6 +1227,7 @@ const renderBlockContent = (
 						<DynamicValueInput
 							value={p.level_source}
 							onChange={(v) => updateParams({ level_source: v })}
+							className="flex-grow flex-1 min-w-0"
 						/>
 					</ParamRow>
 				</>
@@ -1008,8 +1263,270 @@ const renderBlockContent = (
 					<DynamicValueInput
 						value={p.new_sl_price}
 						onChange={(v) => updateParams({ new_sl_price: v })}
+						className="flex-grow flex-1 min-w-0"
 					/>
 				</ParamRow>
+			);
+		case "local_level":
+			return (
+				<>
+					<ParamRow title="Timeframe">
+						<ParamSelect
+							value={p.timeframe || "5m"}
+							onChange={(v) => updateParams({ timeframe: v })}
+							items={[
+								{ value: "1m", label: "1m" },
+								{ value: "5m", label: "5m" },
+								{ value: "15m", label: "15m" },
+								{ value: "1h", label: "1h" },
+								{ value: "4h", label: "4h" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Lookback period">
+						<DynamicValueInput
+							value={p.lookback_period}
+							onChange={(v) => updateParams({ lookback_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Level type">
+						<ParamSelect
+							value={p.level_type || "all"}
+							onChange={(v) => updateParams({ level_type: v })}
+							items={[
+								{ value: "high", label: t("blocks.local_level.level_types.high") || "High" },
+								{ value: "low", label: t("blocks.local_level.level_types.low") || "Low" },
+								{ value: "all", label: t("blocks.local_level.level_types.all") || "High/Low" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Proximity type">
+						<ParamSelect
+							value={p.proximity_type || "atr_multiplier"}
+							onChange={(v) => updateParams({ proximity_type: v })}
+							items={[
+								{ value: "atr_multiplier", label: "ATR" },
+								{ value: "percentage", label: "%" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Proximity value">
+						<DynamicValueInput
+							value={p.proximity_value}
+							onChange={(v) => updateParams({ proximity_value: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Options">
+						<label className="flex items-center gap-2 text-sm text-[hsl(var(--foreground))]">
+							<input
+								type="checkbox"
+								checked={p.is_data_provider || false}
+								onChange={(e) =>
+									updateParams({ is_data_provider: e.target.checked })
+								}
+								className="form-checkbox h-4 w-4 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded"
+							/>
+							<span>{t("blocks.local_level.is_data_provider_label") || "Is data provider"}</span>
+						</label>
+					</ParamRow>
+				</>
+			);
+		case "senior_tf_confluence":
+			return (
+				<ParamRow title={t("blocks.senior_tf_confluence.text") || "Timeframe"}>
+					<ParamSelect
+						value={p.timeframe || "1h"}
+						onChange={(v) => updateParams({ timeframe: v })}
+						items={[
+							{ value: "15m", label: "15m" },
+							{ value: "1h", label: "1h" },
+							{ value: "4h", label: "4h" },
+							{ value: "1d", label: "1d" },
+						]}
+					/>
+				</ParamRow>
+			);
+		case "tape_analysis":
+			return (
+				<ParamRow title={t("blocks.tape_analysis.text") || "Time window"}>
+					<ParamSelect
+						value={p.time_window_sec || 5}
+						onChange={(v) => updateParams({ time_window_sec: parseInt(v, 10) || 5 })}
+						items={[
+							{ value: 5, label: "5s" },
+							{ value: 10, label: "10s" },
+							{ value: 30, label: "30s" },
+						]}
+					/>
+				</ParamRow>
+			);
+		case "order_book_zone":
+			return (
+				<>
+					<ParamRow title="Side">
+						<ParamSelect
+							value={p.side || "bids"}
+							onChange={(v) => updateParams({ side: v })}
+							items={[
+								{ value: "bids", label: t("blocks.order_book_zone.options.bids") || "Bids" },
+								{ value: "asks", label: t("blocks.order_book_zone.options.asks") || "Asks" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Range value">
+						<DynamicValueInput
+							value={p.range_value}
+							onChange={(v) => updateParams({ range_value: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Range type">
+						<ParamSelect
+							value={p.range_type || "Percentage"}
+							onChange={(v) => updateParams({ range_type: v })}
+							items={[
+								{ value: "Percentage", label: t("blocks.order_book_zone.range_type_percentage") || "%" },
+								{ value: "ATR Multiplier", label: t("blocks.order_book_zone.range_type_atr") || "ATR" },
+								{ value: "Ticks", label: t("blocks.order_book_zone.range_type_ticks") || "Ticks" },
+							]}
+						/>
+					</ParamRow>
+				</>
+			);
+		case "macd_condition":
+			return (
+				<>
+					<ParamRow title="Fast period">
+						<DynamicValueInput
+							value={p.fast_period || p.fast}
+							onChange={(v) => updateParams({ fast_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Slow period">
+						<DynamicValueInput
+							value={p.slow_period || p.slow}
+							onChange={(v) => updateParams({ slow_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Signal period">
+						<DynamicValueInput
+							value={p.signal_period || p.signal}
+							onChange={(v) => updateParams({ signal_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Condition">
+						<ParamSelect
+							value={p.condition}
+							onChange={(v) => updateParams({ condition: v })}
+							items={[
+								{
+									value: "macd_cross_above_signal",
+									label: t("blocks.macd_condition.options.macd_cross_above_signal") || "MACD cross above Signal",
+								},
+								{
+									value: "macd_cross_below_signal",
+									label: t("blocks.macd_condition.options.macd_cross_below_signal") || "MACD cross below Signal",
+								},
+								{
+									value: "hist_gt_zero",
+									label: t("blocks.macd_condition.options.hist_gt_zero") || "Histogram > 0",
+								},
+								{
+									value: "hist_lt_zero",
+									label: t("blocks.macd_condition.options.hist_lt_zero") || "Histogram < 0",
+								},
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Offset (bars back)">
+						<SimpleInput
+							value={p.shift || 0}
+							onChange={(e) => handleNumberChange("shift", e.target.value)}
+						/>
+					</ParamRow>
+				</>
+			);
+		case "bollinger_bands_condition":
+		case "bb_condition":
+			return (
+				<>
+					<ParamRow title="Price source">
+						<ParamSelect
+							value={p.source || "close"}
+							onChange={(v) => updateParams({ source: v })}
+							items={[
+								{ value: "close", label: t("blocks.bollinger_bands_condition.source_options.close") || "Close" },
+								{ value: "high", label: t("blocks.bollinger_bands_condition.source_options.high") || "High" },
+								{ value: "low", label: t("blocks.bollinger_bands_condition.source_options.low") || "Low" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Condition">
+						<ParamSelect
+							value={p.location || p.check_type}
+							onChange={(v) => updateParams({ location: v, check_type: v })}
+							items={[
+								{ value: "above_upper", label: t("blocks.bollinger_bands_condition.location_options.above_upper") || "Above Upper Band" },
+								{ value: "below_lower", label: t("blocks.bollinger_bands_condition.location_options.below_lower") || "Below Lower Band" },
+								{ value: "price_above_upper", label: t("blocks.bollinger_bands_condition.location_options.above_upper") || "Above Upper Band" },
+								{ value: "price_below_lower", label: t("blocks.bollinger_bands_condition.location_options.below_lower") || "Below Lower Band" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Offset (bars back)">
+						<SimpleInput
+							value={p.shift || 0}
+							onChange={(e) => handleNumberChange("shift", e.target.value)}
+						/>
+					</ParamRow>
+				</>
+			);
+		case "stochastic_condition":
+		case "stoch_condition":
+			return (
+				<>
+					<ParamRow title="K period">
+						<DynamicValueInput
+							value={p.k_period}
+							onChange={(v) => updateParams({ k_period: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Condition">
+						<ParamSelect
+							value={p.condition || p.operator}
+							onChange={(v) => updateParams({ condition: v, operator: v })}
+							items={[
+								{ value: "k_cross_above_d", label: t("blocks.stochastic_condition.options.k_cross_above_d") || "K cross above D" },
+								{ value: "k_cross_below_d", label: t("blocks.stochastic_condition.options.k_cross_below_d") || "K cross below D" },
+								{ value: "k_above_level", label: t("blocks.stochastic_condition.options.k_above_level") || "K > level" },
+								{ value: "k_below_level", label: t("blocks.stochastic_condition.options.k_below_level") || "K < level" },
+								{ value: "cross_above", label: t("blocks.stochastic_condition.options.k_cross_above_d") || "K cross above D" },
+								{ value: "cross_below", label: t("blocks.stochastic_condition.options.k_cross_below_d") || "K cross below D" },
+								{ value: "gt", label: t("blocks.stochastic_condition.options.k_above_level") || "K > level" },
+								{ value: "lt", label: t("blocks.stochastic_condition.options.k_below_level") || "K < level" },
+							]}
+						/>
+					</ParamRow>
+					<ParamRow title="Level / Value">
+						<DynamicValueInput
+							value={p.level || p.value}
+							onChange={(v) => updateParams({ level: v, value: v })}
+							className="flex-grow flex-1 min-w-0"
+						/>
+					</ParamRow>
+					<ParamRow title="Offset (bars back)">
+						<SimpleInput
+							value={p.shift || 0}
+							onChange={(e) => handleNumberChange("shift", e.target.value)}
+						/>
+					</ParamRow>
+				</>
 			);
 		default: {
 			const noParamsMessage: React.ReactNode = t(

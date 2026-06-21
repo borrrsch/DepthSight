@@ -3,7 +3,8 @@
 import type React from "react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import type { DisplayStrategy } from "../types";
+import { type DisplayStrategy, hasProPlanAccess } from "../types";
+import { useAuth } from "../contexts/AuthContext";
 
 interface BacktestModalProps {
 	isOpen: boolean;
@@ -12,6 +13,7 @@ interface BacktestModalProps {
 		symbol: string;
 		startDate: string;
 		endDate: string;
+		backtestEngine: "vector" | "kline";
 	}) => void;
 	strategy: DisplayStrategy | null;
 }
@@ -23,9 +25,14 @@ const BacktestModal: React.FC<BacktestModalProps> = ({
 	strategy,
 }) => {
 	const { t } = useTranslation("pwa-common");
+	const { user } = useAuth();
+	const userTier = user?.plan || "free";
+	const hasPrecisionAccess = hasProPlanAccess(userTier) || user?.role === "admin";
+
 	const [symbol, setSymbol] = useState("");
 	const [startDate, setStartDate] = useState("");
 	const [endDate, setEndDate] = useState("");
+	const [backtestEngine, setBacktestEngine] = useState<"vector" | "kline">("vector");
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
@@ -47,6 +54,7 @@ const BacktestModal: React.FC<BacktestModalProps> = ({
 				.split("T")[0];
 			setStartDate(oneMonthAgo);
 			setEndDate(today);
+			setBacktestEngine("vector");
 		}, 0);
 		return () => clearTimeout(timer);
 	}, [strategy]);
@@ -55,7 +63,11 @@ const BacktestModal: React.FC<BacktestModalProps> = ({
 
 	const handleSubmit = () => {
 		if (symbol && startDate && endDate) {
-			onSubmit({ symbol, startDate, endDate });
+			if (backtestEngine === "kline" && !hasPrecisionAccess) {
+				alert(t("backtestModal.klineProOnly", "Precision Engine (Kline) is available for Pro users only. Please upgrade to unlock institutional-grade testing."));
+				return;
+			}
+			onSubmit({ symbol, startDate, endDate, backtestEngine });
 		} else {
 			alert(t("backtestModal.fillAllFields"));
 		}
@@ -129,6 +141,24 @@ const BacktestModal: React.FC<BacktestModalProps> = ({
 						value={endDate}
 						onChange={(e) => setEndDate(e.target.value)}
 					/>
+				</div>
+
+				<div className="mb-4">
+					<label
+						htmlFor="backtest-engine"
+						className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block font-medium"
+					>
+						{t("backtestModal.backtestEngine", "Backtest Engine")}
+					</label>
+					<select
+						id="backtest-engine"
+						className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
+						value={backtestEngine}
+						onChange={(e) => setBacktestEngine(e.target.value as "vector" | "kline")}
+					>
+						<option value="vector">{t("backtestModal.engineVector", "Vector (Fast)")}</option>
+						<option value="kline">{t("backtestModal.engineKline", "Kline (Precision) [Pro]")}</option>
+					</select>
 				</div>
 
 				<div className="flex gap-3 mt-6">

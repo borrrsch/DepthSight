@@ -40,7 +40,7 @@ const LaunchStrategyModal: React.FC<LaunchStrategyModalProps> = ({
 	const { user } = useAuth();
 	const isAdmin = user?.role === "admin";
 	const isPro = user?.plan === "pro";
-	const canUseOracle = isAdmin || isPro; // Oracle is available to admins and Pro users
+	const canUseOracle = true; // Oracle is available to everyone
 
 	const [mode, setMode] = useState<"paper" | "live">("paper");
 	const [symbolSelectionMode, setSymbolSelectionMode] = useState<

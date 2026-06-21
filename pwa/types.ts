@@ -27,6 +27,8 @@ export interface Message {
 	role: "user" | "ai";
 	content: React.ReactNode;
 	strategy_json?: StrategyConfigData | null;
+	image_base64?: string;
+	image_mime_type?: string;
 }
 
 // --- AI Chat History ---
@@ -39,6 +41,8 @@ export interface AIChatMessage {
 	content: string;
 	strategy_json?: StrategyConfigData | null;
 	created_at: string;
+	image_base64?: string;
+	image_mime_type?: string;
 }
 
 export interface AIChatRequest {
@@ -993,10 +997,16 @@ export interface UserAchievement {
 export type RarityTier = "COMMON" | "RARE" | "EPIC" | "LEGENDARY";
 
 export interface SymbolSelectionConfig {
-	mode: "STATIC" | "DYNAMIC_NATR";
+	mode: "STATIC" | "DYNAMIC_NATR" | "DYNAMIC_ORACLE";
 	min_natr?: number;
+	oracle_regime?: 0 | 1 | 2;
+	oracle_confidence?: number;
 	max_concurrent_symbols: number;
 }
+
+export const hasProPlanAccess = (plan?: string | null): boolean => {
+	return plan === "pro" || plan === "institutional";
+};
 
 export interface Token {
 	access_token: string;

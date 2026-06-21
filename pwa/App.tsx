@@ -625,7 +625,12 @@ const MainAppLayout = () => {
 	}, []);
 
 	const handleRunBacktest = useCallback(
-		async (details: { symbol: string; startDate: string; endDate: string }) => {
+		async (details: {
+			symbol: string;
+			startDate: string;
+			endDate: string;
+			backtestEngine: "vector" | "kline";
+		}) => {
 			if (!strategyForBacktest) return;
 			try {
 				const configData = strategyForBacktest.config_data as Record<
@@ -639,7 +644,11 @@ const MainAppLayout = () => {
 					start_date: new Date(details.startDate).toISOString(),
 					end_date: new Date(details.endDate).toISOString(),
 					market_type: "futures",
-					params: { config, initial_balance: 10000 },
+					params: {
+						config,
+						initial_balance: 10000,
+						backtest_engine: details.backtestEngine,
+					},
 				};
 				await api.runBacktest(request);
 				setIsBacktestModalOpen(false);

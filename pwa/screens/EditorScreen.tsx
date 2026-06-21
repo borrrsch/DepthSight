@@ -28,7 +28,6 @@ import FoundationWeightsModal, {
 } from "../components/editor/FoundationWeightsModal";
 import InitializationBlock from "../components/editor/InitializationBlock";
 import { ICONS } from "../constants";
-import { useSymbolSelectionSettings } from "../contexts/SymbolSelectionSettingsContext";
 import {
 	type StateKey,
 	useStrategyEditorStore,
@@ -64,13 +63,16 @@ const EditorScreen: React.FC<EditorScreenProps> = ({
 		moveCondition,
 		use_ml_confirmation,
 		setUseMlConfirmation,
+		symbol_selection_mode,
+		min_natr,
+		max_concurrent_symbols,
+		oracleRegime,
+		oracleConfidence,
+		breakeven_on_regime_change,
+		setOracleRegime,
+		setOracleConfidence,
+		setBreakevenOnRegimeChange,
 	} = useStrategyEditorStore();
-
-	const {
-		settings: symbolSelectionSettings,
-		updateSettings: updateSymbolSelectionSettings,
-		isLoading: isSettingsLoading,
-	} = useSymbolSelectionSettings();
 
 	const [name, setName] = useState(storeName);
 	const [description, setDescription] = useState(storeDescription);
@@ -314,34 +316,34 @@ const EditorScreen: React.FC<EditorScreenProps> = ({
 							Mode
 						</label>
 						<select
-							value={symbolSelectionSettings?.mode || "STATIC"}
+							value={symbol_selection_mode || "STATIC"}
 							onChange={(e) =>
-								updateSymbolSelectionSettings({
-									mode: e.target.value as "STATIC" | "DYNAMIC_NATR",
-								})
+								setStrategyField(
+									"symbol_selection_mode",
+									e.target.value as "STATIC" | "DYNAMIC_NATR" | "DYNAMIC_ORACLE",
+								)
 							}
-							disabled={isSettingsLoading || isSaving}
+							disabled={isSaving}
 							className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
 						>
 							<option value="STATIC">Static List</option>
 							<option value="DYNAMIC_NATR">Dynamic Filter by NATR</option>
+							<option value="DYNAMIC_ORACLE">Dynamic Filter by Oracle</option>
 						</select>
 					</div>
 
-					{symbolSelectionSettings?.mode === "DYNAMIC_NATR" && (
+					{symbol_selection_mode === "DYNAMIC_NATR" && (
 						<div>
 							<label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
 								Minimum NATR 1/30 (1m)
 							</label>
 							<input
 								type="number"
-								value={symbolSelectionSettings.min_natr || 0}
+								value={min_natr || 0}
 								onChange={(e) =>
-									updateSymbolSelectionSettings({
-										min_natr: parseFloat(e.target.value),
-									})
+									setStrategyField("min_natr", parseFloat(e.target.value))
 								}
-								disabled={isSettingsLoading || isSaving}
+								disabled={isSaving}
 								className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
 								step="0.1"
 								min="0"
@@ -350,23 +352,87 @@ const EditorScreen: React.FC<EditorScreenProps> = ({
 						</div>
 					)}
 
-					<div>
-						<label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
-							Max Concurrent Symbols
-						</label>
-						<input
-							type="number"
-							value={symbolSelectionSettings?.max_concurrent_symbols || 5}
-							onChange={(e) =>
-								updateSymbolSelectionSettings({
-									max_concurrent_symbols: parseInt(e.target.value, 10),
-								})
-							}
-							disabled={isSettingsLoading || isSaving}
-							className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
-							min="1"
-						/>
-					</div>
+					{symbol_selection_mode === "DYNAMIC_ORACLE" && (
+						<>
+							<div>
+								<label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
+									{t("launchStrategyModal.requiredRegime", "Required Regime")}
+								</label>
+								<select
+									className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
+									value={oracleRegime !== null && oracleRegime !== undefined ? String(oracleRegime) : "1"}
+									onChange={(e) => setOracleRegime(Number(e.target.value))}
+									disabled={isSaving}
+								>
+									<option value="0">
+										{t("launchStrategyModal.oracleRegimeParanoiaFull", "Paranoia")}
+									</option>
+									<option value="1">
+										{t("launchStrategyModal.oracleRegimeAmnesiaFull", "Amnesia")}
+									</option>
+									<option value="2">
+										{t("launchStrategyModal.oracleRegimeSchizophreniaFull", "Schizophrenia")}
+									</option>
+								</select>
+							</div>
+
+							<div>
+								<div className="flex justify-between mb-1">
+									<label className="text-sm text-[hsl(var(--muted-foreground))]">
+										{t("launchStrategyModal.minConfidence", "Min Confidence (%)")}
+									</label>
+									<span className="text-sm text-[hsl(var(--foreground))] font-medium">
+										{oracleConfidence}%
+									</span>
+								</div>
+								<input
+									type="range"
+									min="0"
+									max="100"
+									value={oracleConfidence !== undefined ? oracleConfidence : 0}
+									onChange={(e) =>
+										setOracleConfidence(parseInt(e.target.value, 10))
+									}
+									disabled={isSaving}
+									className="w-full h-2 bg-[hsl(var(--secondary))] rounded-lg appearance-none cursor-pointer accent-[hsl(var(--primary))]"
+								/>
+							</div>
+
+							<div>
+								<label className="flex items-center cursor-pointer mt-2">
+									<span className="mr-2 text-sm text-[hsl(var(--foreground))]">
+										{t("launchStrategyModal.breakevenOnRegimeChange", "Breakeven on Regime Change")}
+									</span>
+									<input
+										type="checkbox"
+										className="sr-only peer"
+										checked={!!breakeven_on_regime_change}
+										onChange={(e) => setBreakevenOnRegimeChange(e.target.checked)}
+										disabled={isSaving}
+									/>
+									<div className="relative w-11 h-6 bg-[hsl(var(--secondary))] peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-[hsl(var(--primary))]/30 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-[hsl(var(--border))] after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[hsl(var(--primary))]"></div>
+								</label>
+							</div>
+						</>
+					)}
+
+					{symbol_selection_mode !== "STATIC" && (
+						<div>
+							<label className="text-sm text-[hsl(var(--muted-foreground))] mb-2 block">
+								Max Concurrent Symbols
+							</label>
+							<input
+								type="number"
+								value={max_concurrent_symbols || 5}
+								onChange={(e) =>
+									setStrategyField("max_concurrent_symbols", parseInt(e.target.value, 10))
+								}
+								disabled={isSaving}
+								className="w-full p-3 bg-[hsl(var(--secondary))] border border-[hsl(var(--border))] rounded-lg text-base text-[hsl(var(--foreground))] outline-none transition-all focus:border-[hsl(var(--primary))] focus:ring-1 focus:ring-[hsl(var(--primary))]"
+								min="1"
+							/>
+						</div>
+					)}
 				</div>
 			</CollapsibleSection>
 
