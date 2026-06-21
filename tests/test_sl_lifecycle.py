@@ -10,6 +10,10 @@ api_key = os.environ.get("TESTNET_BINANCE_FUTURES_API_KEY")
 api_secret = os.environ.get("TESTNET_BINANCE_FUTURES_API_SECRET")
 
 
+@pytest.mark.skipif(
+    not api_key or not api_secret or "YOUR_" in api_key or "YOUR_" in api_secret,
+    reason="TESTNET_BINANCE_FUTURES_API_KEY and TESTNET_BINANCE_FUTURES_API_SECRET must be set in .env"
+)
 @pytest.mark.asyncio
 async def test_sl_lifecycle():
     exchange = ccxt.binance(

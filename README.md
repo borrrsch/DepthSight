@@ -64,6 +64,24 @@ DepthSight is built for heavy-duty algorithmic trading, requiring a minimum of 6
 - **Crypto Billing & Payments:** Native integration with Bitcart for processing cryptocurrency subscriptions and payments.
 - **Modern Clients:** Full-featured React web dashboard and a mobile-optimized PWA.
 
+## 🚀 One-Click Deploy
+
+DepthSight requires a minimum of 6 modern CPU cores and 16GB RAM. If you need a server, you can support this open-source project by using our referral links below:
+
+- **[DigitalOcean](https://www.digitalocean.com/?refcode=681ba89f8858&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)** — Get **$200 in free credit** for 60 days. Excellent for stable API performance.
+- **[Vultr](https://www.vultr.com/?ref=9905236-9J)** — Get **$300 in free credit** to test the platform. Great high-frequency compute nodes.
+- **[LuxVPS](https://billing.luxvps.net/aff.php?aff=249)** — Best price-to-performance ratio (~€20/mo). Excellent choice for a budget-friendly but powerful trading node (Crypto accepted).
+- **[is*hosting](https://ishosting.com/affiliate/NzU2OCM2)** — Premium hosting with a massive selection of global locations (from $50+/mo). Perfect if you need a server physically close to a specific exchange for lower latency (Crypto accepted).
+
+Deploy a fully configured instance on any Ubuntu 22.04+ server with a single command. The script auto-installs Docker, generates all secrets, configures networking, sets up a firewall, and starts every service.
+
+```bash
+curl -sL "https://raw.githubusercontent.com/DepthSight-Pro/DepthSight/main/deploy.sh" | sudo bash
+```
+
+The interactive installer will ask for your domain (or default to `<IP>.sslip.io` with auto-SSL via Caddy), and optionally enable Bitcart crypto billing.
+
+
 ## 💖 Support the Project
 
 DepthSight is completely free and open-source. Maintaining a professional-grade trading infrastructure requires significant resources. To keep the project alive and free for everyone, we use exchange broker programs as our primary support mechanism.
@@ -85,23 +103,6 @@ DepthSight is released under the **GNU AGPLv3** open-source license. You are fre
 
 **Dual Licensing for SaaS / Commercial Use:**
 If you want to build a closed-source fin-tech business or a commercial SaaS offering on top of our infrastructure without open-sourcing your modifications under AGPLv3, you must purchase a commercial license. Please contact `admin@depthsight.pro` for White-Label licensing.
-
-## 🚀 One-Click Deploy
-
-DepthSight requires a minimum of 6 modern CPU cores and 16GB RAM. If you need a server, you can support this open-source project by using our referral links below:
-
-- **[DigitalOcean](https://www.digitalocean.com/?refcode=681ba89f8858&utm_campaign=Referral_Invite&utm_medium=Referral_Program&utm_source=badge)** — Get **$200 in free credit** for 60 days. Excellent for stable API performance.
-- **[Vultr](https://www.vultr.com/?ref=9905236-9J)** — Get **$300 in free credit** to test the platform. Great high-frequency compute nodes.
-- **[LuxVPS](https://billing.luxvps.net/aff.php?aff=249)** — Best price-to-performance ratio (~€20/mo). Excellent choice for a budget-friendly but powerful trading node (Crypto accepted).
-- **[is*hosting](https://ishosting.com/affiliate/NzU2OCM2)** — Premium hosting with a massive selection of global locations (from $50+/mo). Perfect if you need a server physically close to a specific exchange for lower latency (Crypto accepted).
-
-Deploy a fully configured instance on any Ubuntu 22.04+ server with a single command. The script auto-installs Docker, generates all secrets, configures networking, sets up a firewall, and starts every service.
-
-```bash
-curl -sL "https://raw.githubusercontent.com/DepthSight-Pro/DepthSight/main/deploy.sh" | sudo bash
-```
-
-The interactive installer will ask for your domain (or default to `<IP>.sslip.io` with auto-SSL via Caddy), and optionally enable Bitcart crypto billing.
 
 ### Updating
 
