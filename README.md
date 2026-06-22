@@ -64,6 +64,45 @@ DepthSight is built for heavy-duty algorithmic trading, requiring a minimum of 6
 - **Crypto Billing & Payments:** Native integration with Bitcart for processing cryptocurrency subscriptions and payments.
 - **Modern Clients:** Full-featured React web dashboard and a mobile-optimized PWA.
 
+## ⚔️ DepthSight vs. Alternatives
+
+### 1. Comparison with Open-Source Projects
+
+| Criterion | DepthSight | OpenAlgo (2.1k★) | Vibe-Trading (12.7k★) | AI Hedge Fund (49.6k★) | Freqtrade (34k★) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **Product Type** | Production SaaS-in-a-box | API bridge for brokers | AI research workspace | Educational script | Trading framework |
+| **Target Market** | Crypto (Binance, Bybit) | 🇮🇳 India only (30+ Indian brokers) | Stocks (US markets) | Stocks (US markets) | Crypto (CCXT) |
+| **Visual UI** | ✅ Drag-and-drop node editor (40+ blocks) | ⚠️ Simple web interface | ❌ CLI only | ❌ CLI only (+ opt. Streamlit) | ⚠️ Basic WebUI |
+| **AI Assistant** | ✅ From prompts + chart screenshots | ❌ | ✅ NL → strategy (LLM) | ✅ Multi-agent analysis | ⚠️ FreqAI (ML, non-generative) |
+| **Backtesting** | ✅ Dual (vector + candle/tick) | ❌ | ✅ | ⚠️ Basic | ✅ Powerful (+ Hyperopt) |
+| **Multi-tenant** | ✅ JWT + Redis quotas + isolation | ❌ Single-user | ❌ Single-user | ❌ Single-user | ❌ Single-user |
+| **Deployment** | ✅ One-click (`curl \| bash`) | Docker | pip install | pip install | Docker / source |
+| **Monetization** | ✅ Bitcart crypto billing | ❌ | ❌ | ❌ | ❌ |
+| **Federation** | ✅ Discovery Hub + Node Network | ❌ | ❌ | ❌ | ❌ |
+| **Mobile Client** | ✅ PWA | ❌ | ❌ | ❌ | Telegram bot |
+| **Architecture** | FastAPI + Celery + Redis ACL + PgBouncer | Flask + React | Python script | Python script | Python + CCXT |
+| **Risk Management** | ✅ Dynamic (auto-adapts per pair) | ❌ | ❌ | ⚠️ Simple RM agent | ⚠️ Standard SL/TP |
+| **Weighted Entries** | ✅ Weighted probability system | ❌ | ❌ | ❌ | ❌ |
+
+### 2. Comparison with Commercial / Closed-Source Platforms
+
+| Criterion | DepthSight | 3Commas | Veles |
+| :--- | :--- | :--- | :--- |
+| **Pricing** | Free (AGPL + commercial license) | $29 - $79/mo | 20% profit commission (up to $50/mo) |
+| **Codebase** | ✅ Open-source | ❌ Proprietary | ❌ Proprietary |
+| **Self-hosted** | ✅ Yes | ❌ Cloud-only | ❌ Cloud-only |
+| **Visual Builder** | ✅ Node editor (40+ blocks, cross-referencing) | ⚠️ AI Chat → "Strategy Cards" (2026), no visual canvas | ⚠️ Pre-built templates (Simple/Moderate/Aggressive) + manual grids |
+| **AI Assistant** | ✅ Prompts + chart screenshots | ⚠️ Gemini-powered chat (limited to DCA bots) | ❌ |
+| **Strategies** | ✅ Infinite logic configurations via node graph | ⚠️ DCA, Grid, SmartTrade, external signals | ⚠️ DCA/Grid hybrid |
+| **Weighted Entries** | ✅ Weighted conditions system | ❌ Simple Boolean/Signal logic | ❌ Simple Boolean/Signal logic |
+| **Dynamic RM** | ✅ Position sizing adapts per pair | ❌ Fixed SL/TP | ⚠️ Trailing stop, breakeven |
+| **Backtesting** | ✅ Dual backtesting engine | ⚠️ Limited backtesting via AI Chat | ✅ Basic backtests |
+| **Order Book Analysis** | ✅ Native depth & spread blocks | ❌ | ❌ |
+| **Multi-Timeframe** | ✅ Yes | ⚠️ Via TradingView webhook signals | ❌ |
+| **Community Hub** | ✅ Federation Hub + templates + discussions | ✅ Marketplace (paid third-party signals) | ❌ |
+| **Mobile App** | ✅ PWA | ✅ iOS/Android | ✅ iOS |
+| **Supported Exchanges** | Binance, Bybit (stable) + 4 in development | 15+ | 8+ |
+
 ## 🚀 One-Click Deploy
 
 DepthSight requires a minimum of 6 modern CPU cores and 16GB RAM. If you need a server, you can support this open-source project by using our referral links below:
@@ -80,7 +119,6 @@ curl -sL "https://raw.githubusercontent.com/DepthSight-Pro/DepthSight/main/deplo
 ```
 
 The interactive installer will ask for your domain (or default to `<IP>.sslip.io` with auto-SSL via Caddy), and optionally enable Bitcart crypto billing.
-
 
 ## 💖 Support the Project
 

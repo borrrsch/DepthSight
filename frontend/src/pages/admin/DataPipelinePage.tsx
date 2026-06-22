@@ -52,7 +52,44 @@ interface StorageSymbol {
 
 const DataPipelinePage: React.FC = () => {
   // Config state
-  const [symbols, setSymbols] = useState<string[]>(["BTCUSDT"]);
+  const [symbols, setSymbols] = useState<string[]>([
+    "0GUSDT",
+    "ADAUSDT",
+    "AIAUSDT",
+    "ANIMEUSDT",
+    "APRUSDT",
+    "ARCUSDT",
+    "AVNTUSDT",
+    "B2USDT",
+    "BANANAS31USDT",
+    "BEATUSDT",
+    "BTCUSDT",
+    "CLOUSDT",
+    "COAIUSDT",
+    "DASHUSDT",
+    "DOGEUSDT",
+    "ETHUSDT",
+    "EVAAUSDT",
+    "FARTCOINUSDT",
+    "FOLKSUSDT",
+    "HIFIUSDT",
+    "HUSDT",
+    "HYPEUSDT",
+    "IPUSDT",
+    "JELLYJELLYUSDT",
+    "LIGHTUSDT",
+    "LINKUSDT",
+    "LUMIAUSDT",
+    "LYNUSDT",
+    "MYXUSDT",
+    "PUMPUSDT",
+    "RIVERUSDT",
+    "SOLUSDT",
+    "SOONUSDT",
+    "TRUTHUSDT",
+    "ZECUSDT",
+    "ZORAUSDT"
+  ]);
   const [customSymbol, setCustomSymbol] = useState("");
   const [dataTypes, setDataTypes] = useState<string[]>(["klines", "aggTrades"]);
   const [timeframes, setTimeframes] = useState<string[]>(["1m"]);
@@ -60,7 +97,7 @@ const DataPipelinePage: React.FC = () => {
   const [endDate, setEndDate] = useState(new Date().toISOString().split("T")[0]);
   const [updateOnly, setUpdateOnly] = useState(false);
   const [enrichOnly, setEnrichOnly] = useState(false);
-  const [deleteAggtrades, setDeleteAggtrades] = useState(true);
+  const [deleteAggtrades, setDeleteAggtrades] = useState(false);
 
   // System state
   const [isRunning, setIsRunning] = useState(false);
@@ -69,7 +106,7 @@ const DataPipelinePage: React.FC = () => {
   const [storageData, setStorageData] = useState<StorageSymbol[]>([]);
   const [copied, setCopied] = useState(false);
   const [activeTab, setActiveTab] = useState("config");
-  const [catchUpDeleteAggtrades, setCatchUpDeleteAggtrades] = useState(true);
+  const [catchUpDeleteAggtrades, setCatchUpDeleteAggtrades] = useState(false);
   const [progress, setProgress] = useState(0);
   const [currentTask, setCurrentTask] = useState("");
 
@@ -181,9 +218,16 @@ const DataPipelinePage: React.FC = () => {
 
   const addCustomSymbol = (e: React.FormEvent) => {
     e.preventDefault();
-    const sym = customSymbol.trim().toUpperCase();
-    if (sym && !symbols.includes(sym)) {
-      setSymbols([...symbols, sym]);
+    const syms = customSymbol
+      .split(/[\s,;]+/)
+      .map((s) => s.trim().toUpperCase())
+      .filter((s) => s !== "");
+
+    if (syms.length > 0) {
+      const newSymbols = syms.filter((s) => !symbols.includes(s));
+      if (newSymbols.length > 0) {
+        setSymbols([...symbols, ...newSymbols]);
+      }
       setCustomSymbol("");
     }
   };
@@ -286,8 +330,8 @@ const DataPipelinePage: React.FC = () => {
                     ))}
                     <form onSubmit={addCustomSymbol} className="inline-flex items-center">
                       <Input
-                        className="h-7 w-32 text-xs"
-                        placeholder="Add symbol..."
+                        className="h-7 w-48 text-xs"
+                        placeholder="Add symbol(s) e.g. BTCUSDT, ETHUSDT..."
                         value={customSymbol}
                         onChange={(e) => setCustomSymbol(e.target.value)}
                       />

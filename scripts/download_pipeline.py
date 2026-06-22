@@ -143,24 +143,50 @@ def save_data(df: pd.DataFrame, target_path: Path):
     if df.empty:
         logging.warning(f"Received empty DataFrame. Saving to {target_path} canceled.")
         return
+
+    # Filter out non-numeric/non-boolean columns from incoming DataFrame
+    df = df.select_dtypes(include=[np.number, "bool"])
+
+    # Cast float64 columns to float32 to save memory/space and prevent mixed types
+    for col in df.select_dtypes(include=["float64"]).columns:
+        df[col] = df[col].astype("float32")
+
     if target_path.exists():
         print(f"Detected existing file: {target_path}. Merging...")
         try:
             existing_df = pd.read_parquet(target_path)
+            
+            # Filter out non-numeric/non-boolean columns from existing DataFrame
+            existing_df = existing_df.select_dtypes(include=[np.number, "bool"])
+
+            # Cast float64 columns to float32
+            for col in existing_df.select_dtypes(include=["float64"]).columns:
+                existing_df[col] = existing_df[col].astype("float32")
+
+            # Align timezones to UTC aware to prevent merging conflicts
+            if existing_df.index.tz is None:
+                existing_df.index = existing_df.index.tz_localize("UTC")
+            if df.index.tz is None:
+                df.index = df.index.tz_localize("UTC")
+            if str(existing_df.index.tz) != "UTC":
+                existing_df.index = existing_df.index.tz_convert("UTC")
+            if str(df.index.tz) != "UTC":
+                df.index = df.index.tz_convert("UTC")
+                
             df = pd.concat([existing_df, df])
             df.sort_index(inplace=True)
             df = df[~df.index.duplicated(keep="last")]
         except Exception as e:
             logging.error(
-                f"Failed to read {target_path}: {e}. File will be overwritten."
+                f"CRITICAL: Failed to read/merge {target_path}: {e}. "
+                f"To prevent data corruption and truncation, the file will NOT be overwritten!"
             )
-            df.sort_index(inplace=True)
-            df = df[~df.index.duplicated(keep="last")]
+            raise e
 
     df = df[~df.index.duplicated(keep="last")].sort_index()  # Final check
     temp_path = target_path.with_name(f"{target_path.name}.tmp")
     try:
-        df.to_parquet(temp_path, engine="pyarrow", compression="snappy")
+        df.to_parquet(temp_path, engine="pyarrow", compression="snappy", use_dictionary=False)
         os.replace(temp_path, target_path)
         print(f"Successfully saved/updated {len(df)} rows in file {target_path}")
     except Exception as e:
@@ -414,6 +440,37 @@ def get_existing_dates_from_parquet(target_path: Path) -> set[date]:
         return set()
 
 
+def is_day_enriched(kline_path: Path, check_date: date) -> bool:
+    if not kline_path.exists():
+        return False
+    try:
+        # Load only index and marker column to save memory
+        df = pd.read_parquet(kline_path, columns=[ENRICHMENT_MARKER_COLUMN])
+        if ENRICHMENT_MARKER_COLUMN not in df.columns:
+            return False
+        df_day = df[df.index.date == check_date]
+        if df_day.empty:
+            return False
+        return not df_day[ENRICHMENT_MARKER_COLUMN].isnull().any()
+    except Exception:
+        return False
+
+
+def is_month_enriched(kline_path: Path, year: int, month: int) -> bool:
+    if not kline_path.exists():
+        return False
+    try:
+        df = pd.read_parquet(kline_path, columns=[ENRICHMENT_MARKER_COLUMN])
+        if ENRICHMENT_MARKER_COLUMN not in df.columns:
+            return False
+        df_month = df[(df.index.year == year) & (df.index.month == month)]
+        if df_month.empty:
+            return False
+        return not df_month[ENRICHMENT_MARKER_COLUMN].isnull().any()
+    except Exception:
+        return False
+
+
 # --- Other functions (load_aggtrades_for_range, etc.) unchanged ---
 def load_aggtrades_for_range(
     symbol: str, start_date: date, end_date: date, base_path: Optional[Path] = None
@@ -471,6 +528,8 @@ def calculate_tape_features(
             "Empty trades DataFrame passed, tape features calculation skipped."
         )
         return pd.DataFrame(index=target_index)
+
+    agg_trades_df = agg_trades_df.copy()
 
     # --- DATA VERIFICATION AND PREPARATION BLOCK ---
     if "price" not in agg_trades_df.columns or "quantity" not in agg_trades_df.columns:
@@ -865,7 +924,10 @@ def run_enrichment_for_1m(
                     klines_df = klines_df.loc[
                         :, ~klines_df.columns.duplicated(keep="first")
                     ]
-                klines_df.to_parquet(kline_path, engine="pyarrow", compression="snappy")
+                klines_df_save = klines_df.select_dtypes(include=[np.number, "bool"])
+                for col in klines_df_save.select_dtypes(include=["float64"]).columns:
+                    klines_df_save[col] = klines_df_save[col].astype("float32")
+                klines_df_save.to_parquet(kline_path, engine="pyarrow", compression="snappy", use_dictionary=False)
                 print("Intermediate save complete.")
             except Exception as e:
                 logging.error(f"Failed to save intermediate progress: {e}")
@@ -883,7 +945,10 @@ def run_enrichment_for_1m(
         print(f"WARNING: Duplicate columns detected: {dup_cols}. Removing duplicates.")
         klines_df = klines_df.loc[:, ~klines_df.columns.duplicated(keep="first")]
 
-    klines_df.to_parquet(kline_path, engine="pyarrow", compression="snappy")
+    klines_df_save = klines_df.select_dtypes(include=[np.number, "bool"])
+    for col in klines_df_save.select_dtypes(include=["float64"]).columns:
+        klines_df_save[col] = klines_df_save[col].astype("float32")
+    klines_df_save.to_parquet(kline_path, engine="pyarrow", compression="snappy", use_dictionary=False)
     print("Saving complete.")
 
 
@@ -939,7 +1004,10 @@ def run_generation_for_1s(
             symbol, "klines_1s", partition_date=month_key, base_path=base_path
         )
         print(f"Saving enriched 1s klines to {target_path}...")
-        final_month_df.to_parquet(target_path, engine="pyarrow", compression="snappy")
+        final_month_df_save = final_month_df.select_dtypes(include=[np.number, "bool"])
+        for col in final_month_df_save.select_dtypes(include=["float64"]).columns:
+            final_month_df_save[col] = final_month_df_save[col].astype("float32")
+        final_month_df_save.to_parquet(target_path, engine="pyarrow", compression="snappy", use_dictionary=False)
         del month_trades_df, klines_1s_df, enriched_1s_df, final_month_df
         gc.collect()
         print_memory_usage(f"After memory cleanup for {month_key.strftime('%Y-%m')}")
@@ -1104,6 +1172,8 @@ def run_pipeline(
                     existing_dates_agg = get_existing_partitioned_dates(
                         symbol, "aggTrades", base_path=base_path
                     )
+                    existing_months_1s = get_existing_dates(symbol, "klines_1s", base_path=base_path)
+                    kline_path = get_target_path(symbol, "klines", "1m", base_path=base_path)
 
                     # 2. Collect all months in the specified range
                     months_to_process = set()
@@ -1124,31 +1194,41 @@ def run_pipeline(
                         # Flag that will determine if we need to check days individually
                         needs_daily_check = True
 
-                        # Try to download monthly archive if month is fully passed
-                        if month_end < today - timedelta(days=1):
-                            has_any_data_for_month = any(
-                                d.year == month_start.year
-                                and d.month == month_start.month
-                                for d in existing_dates_agg
-                            )
+                        # Check if the entire month is already enriched and 1s data exists
+                        month_fully_processed = is_month_enriched(kline_path, month_start.year, month_start.month) and (month_start in existing_months_1s)
 
-                            if not has_any_data_for_month:
-                                print(
-                                    f"Processing full passed month: {month_start.strftime('%Y-%m')}. Downloading monthly archive."
+                        if month_fully_processed:
+                            print(
+                                f"Skipping monthly archive for {month_start.strftime('%Y-%m')} because it is already fully enriched and 1s data exists."
+                            )
+                            needs_daily_check = False
+                        else:
+                            # Try to download monthly archive if month is fully passed
+                            if month_end < today - timedelta(days=1):
+                                has_any_data_for_month = any(
+                                    d.year == month_start.year
+                                    and d.month == month_start.month
+                                    for d in existing_dates_agg
                                 )
-                                download_and_process(
-                                    session,
-                                    symbol,
-                                    "aggTrades",
-                                    None,
-                                    month_start,
-                                    "monthly",
-                                )
-                                needs_daily_check = False
-                            else:
-                                print(
-                                    f"Skipping monthly archive for {month_start.strftime('%Y-%m')} because data for this month already partially exists."
-                                )
+
+                                if not has_any_data_for_month:
+                                    print(
+                                        f"Processing full passed month: {month_start.strftime('%Y-%m')}. Downloading monthly archive."
+                                    )
+                                    download_and_process(
+                                        session,
+                                        symbol,
+                                        "aggTrades",
+                                        None,
+                                        month_start,
+                                        "monthly",
+                                        base_path=base_path,
+                                    )
+                                    needs_daily_check = False
+                                else:
+                                    print(
+                                        f"Skipping monthly archive for {month_start.strftime('%Y-%m')} because data for this month already partially exists."
+                                    )
 
                         # If current month or we decided to process it by days
                         if needs_daily_check:
@@ -1161,7 +1241,15 @@ def run_pipeline(
 
                             d_inner = start_loop
                             while d_inner <= end_loop:
-                                if d_inner not in existing_dates_agg:
+                                day_is_enriched = is_day_enriched(kline_path, d_inner)
+                                month_start_date = date(d_inner.year, d_inner.month, 1)
+                                klines_1s_exists = month_start_date in existing_months_1s
+
+                                if day_is_enriched and klines_1s_exists:
+                                    print(
+                                        f"Skip aggTrades download: day {d_inner} is already enriched and 1s data exists."
+                                    )
+                                elif d_inner not in existing_dates_agg:
                                     download_and_process(
                                         session,
                                         symbol,
@@ -1169,6 +1257,7 @@ def run_pipeline(
                                         None,
                                         d_inner,
                                         "daily",
+                                        base_path=base_path,
                                     )
                                 else:
                                     print(
@@ -1201,30 +1290,111 @@ def run_pipeline(
 
                 # --- Logic for other (non-partitioned) data types ---
                 else:  # klines, open_interest
-                    tf_list = timeframes if data_type == "klines" else [None]
-                    for timeframe in tf_list:
-                        target_path = get_target_path(
-                            symbol, data_type, timeframe, base_path=base_path
-                        )
-                        existing_dates = get_existing_dates_from_parquet(target_path)
+                    if data_type == "klines":
+                        today = datetime.utcnow().date()
+                        tf_list = timeframes
+                        for timeframe in tf_list:
+                            target_path = get_target_path(
+                                symbol, data_type, timeframe, base_path=base_path
+                            )
+                            existing_dates = get_existing_dates_from_parquet(target_path)
 
-                        current_date = start_date_obj
-                        while current_date <= end_date_obj:
-                            if current_date not in existing_dates:
-                                download_and_process(
-                                    session,
-                                    symbol,
-                                    data_type,
-                                    timeframe,
-                                    current_date,
-                                    "daily",
-                                    base_path=base_path,
+                            # Collect all months in the specified range
+                            months_to_process = set()
+                            d = start_date_obj
+                            while d <= end_date_obj:
+                                months_to_process.add(date(d.year, d.month, 1))
+                                d = (d.replace(day=28) + timedelta(days=4)).replace(day=1)
+
+                            print(
+                                f"Planned processing of {len(months_to_process)} months for klines {timeframe}..."
+                            )
+                            for month_start in sorted(list(months_to_process)):
+                                _, days_in_month = monthrange(
+                                    month_start.year, month_start.month
                                 )
-                            else:
-                                print(
-                                    f"Skip: data for {symbol} {data_type} {timeframe or ''} for {current_date} already exists."
-                                )
-                            current_date += timedelta(days=1)
+                                month_end = month_start.replace(day=days_in_month)
+
+                                needs_daily_check = True
+
+                                # Try to download monthly archive if month is fully passed
+                                if month_end < today - timedelta(days=1):
+                                    has_any_data_for_month = any(
+                                        d.year == month_start.year
+                                        and d.month == month_start.month
+                                        for d in existing_dates
+                                    )
+
+                                    if not has_any_data_for_month:
+                                        print(
+                                            f"Processing full passed month: {month_start.strftime('%Y-%m')} for klines {timeframe}. Downloading monthly archive."
+                                        )
+                                        download_and_process(
+                                            session,
+                                            symbol,
+                                            "klines",
+                                            timeframe,
+                                            month_start,
+                                            "monthly",
+                                            base_path=base_path,
+                                        )
+                                        needs_daily_check = False
+                                    else:
+                                        print(
+                                            f"Skipping monthly archive for {month_start.strftime('%Y-%m')} klines {timeframe} because data for this month already partially exists."
+                                        )
+
+                                # If current month or we decided to process it by days
+                                if needs_daily_check:
+                                    print(
+                                        f"Processing month by days: {month_start.strftime('%Y-%m')} for klines {timeframe}. Downloading missing daily archives."
+                                    )
+
+                                    start_loop = max(start_date_obj, month_start)
+                                    end_loop = min(end_date_obj, month_end, today)
+
+                                    d_inner = start_loop
+                                    while d_inner <= end_loop:
+                                        if d_inner not in existing_dates:
+                                            download_and_process(
+                                                session,
+                                                symbol,
+                                                "klines",
+                                                timeframe,
+                                                d_inner,
+                                                "daily",
+                                                base_path=base_path,
+                                            )
+                                        else:
+                                            print(
+                                                f"Skip: klines {timeframe} data for {symbol} for {d_inner} already exists."
+                                            )
+                                        d_inner += timedelta(days=1)
+                    else:  # open_interest
+                        tf_list = [None]
+                        for timeframe in tf_list:
+                            target_path = get_target_path(
+                                symbol, data_type, timeframe, base_path=base_path
+                            )
+                            existing_dates = get_existing_dates_from_parquet(target_path)
+
+                            current_date = start_date_obj
+                            while current_date <= end_date_obj:
+                                if current_date not in existing_dates:
+                                    download_and_process(
+                                        session,
+                                        symbol,
+                                        data_type,
+                                        timeframe,
+                                        current_date,
+                                        "daily",
+                                        base_path=base_path,
+                                    )
+                                else:
+                                    print(
+                                        f"Skip: data for {symbol} {data_type} {timeframe or ''} for {current_date} already exists."
+                                    )
+                                current_date += timedelta(days=1)
         print("\n--- DATA LOADING COMPLETE ---")
 
     # --- Post-processing phase (enrichment and deletion) ---
