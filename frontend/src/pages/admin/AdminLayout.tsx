@@ -58,7 +58,7 @@ const AdminLayout: React.FC = () => {
 	return (
 		<div className="flex flex-1 h-screen bg-background">
 			<aside className="w-64 border-r bg-card p-4 flex flex-col">
-				<h2 className="text-2xl font-bold mb-6">Admin Panel</h2>
+				<h2 className="text-2xl font-bold mb-6">Administration Panel</h2>
 				<nav className="flex flex-col space-y-2">
 					{navItems.map((item) => (
 						<NavLink
